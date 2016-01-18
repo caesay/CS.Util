@@ -15,6 +15,7 @@ namespace CS.Network
     public class NetClient : IDisposable
     {
         public bool Connected => _client?.Connected == true;
+        public EndPoint RemoteEndpoint => _client?.Client.RemoteEndPoint;
 
         public event EventHandler<ClientEventArgs<Exception>> Error;
         public event EventHandler<byte[]> PacketRecieved;
@@ -48,6 +49,9 @@ namespace CS.Network
             if (Connected)
                 return;
 
+            if(String.IsNullOrEmpty(_hostname) || _port == default(int))
+                throw new ArgumentException("Specified hostname and Port must not be null.");
+
             _client = new TcpClient();
             _client.Connect(_hostname, _port);
             if (_ssl)
@@ -66,6 +70,9 @@ namespace CS.Network
         {
             if (Connected)
                 return;
+
+            if (String.IsNullOrEmpty(_hostname) || _port == default(int))
+                throw new ArgumentException("Specified hostname and Port must not be null.");
 
             _client = new TcpClient();
             await _client.ConnectAsync(_hostname, _port);
@@ -95,6 +102,8 @@ namespace CS.Network
 
         public void Write(byte[] packet)
         {
+            if (!Connected)
+                throw new IOException("Can not write to a closed connection");
             byte[] lengthPrefix = BitConverter.GetBytes(packet.Length);
             _stream.Write(lengthPrefix, 0, lengthPrefix.Length);
             _stream.Write(packet, 0, packet.Length);
@@ -106,29 +115,31 @@ namespace CS.Network
         }
         public async Task WriteAsync(byte[] packet, CancellationToken token)
         {
+            if (!Connected)
+                throw new IOException("Can not write to a closed connection");
             byte[] lengthPrefix = BitConverter.GetBytes(packet.Length);
             await _stream.WriteAsync(lengthPrefix, 0, lengthPrefix.Length, token);
             await _stream.WriteAsync(packet, 0, packet.Length, token);
             await _stream.FlushAsync(token);
         }
 
-        private byte[] lengthBuffer;
-        private byte[] dataBuffer;
-        private int bytesReceived;
+        private byte[] _lengthBuffer;
+        private byte[] _dataBuffer;
+        private int _bytesReceived;
 
         private void BeginRead()
         {
             var callback = new AsyncCallback(EndRead);
-            if (dataBuffer != null)
+            if (_dataBuffer != null)
             {
-                _stream.BeginRead(this.dataBuffer, this.bytesReceived, this.dataBuffer.Length - this.bytesReceived, callback, null);
+                _stream.BeginRead(this._dataBuffer, this._bytesReceived, this._dataBuffer.Length - this._bytesReceived, callback, null);
             }
             else
             {
-                if (lengthBuffer == null)
-                    lengthBuffer = new byte[sizeof(int)];
+                if (_lengthBuffer == null)
+                    _lengthBuffer = new byte[sizeof(int)];
 
-                _stream.BeginRead(this.lengthBuffer, this.bytesReceived, this.lengthBuffer.Length - this.bytesReceived, callback, null);
+                _stream.BeginRead(this._lengthBuffer, this._bytesReceived, this._lengthBuffer.Length - this._bytesReceived, callback, null);
             }
         }
         private void EndRead(IAsyncResult result)
@@ -140,12 +151,15 @@ namespace CS.Network
             }
             catch (Exception ex)
             {
-                Error?.Invoke(this, new ClientEventArgs<Exception>(ex));
+                if (ex.HResult == -2146232800)
+                    Disconnected?.Invoke(this, new EventArgs());
+                else
+                    Error?.Invoke(this, new ClientEventArgs<Exception>(ex));
                 return;
             }
 
             // Get the number of bytes read into the buffer
-            this.bytesReceived += bytesRead;
+            this._bytesReceived += bytesRead;
 
             // If we get a zero-length read, then that indicates the remote side graciously closed the connection
             if (bytesRead == 0)
@@ -154,10 +168,10 @@ namespace CS.Network
                 return;
             }
 
-            if (this.dataBuffer == null)
+            if (this._dataBuffer == null)
             {
                 // (We're currently receiving the length buffer)
-                if (this.bytesReceived != sizeof(int))
+                if (this._bytesReceived != sizeof(int))
                 {
                     // We haven't gotten all the length buffer yet
                     BeginRead();
@@ -165,7 +179,7 @@ namespace CS.Network
                 else
                 {
                     // We've gotten the length buffer
-                    int length = BitConverter.ToInt32(this.lengthBuffer, 0);
+                    int length = BitConverter.ToInt32(this._lengthBuffer, 0);
 
                     // Sanity check for length < 0
                     // This check will catch 50% of transmission errors that make it past both the IP and Ethernet checksums
@@ -178,21 +192,21 @@ namespace CS.Network
                     // Zero-length packets are allowed as keepalives
                     if (length == 0)
                     {
-                        this.bytesReceived = 0;
+                        this._bytesReceived = 0;
                         BeginRead();
                     }
                     else
                     {
                         // Create the data buffer and start reading into it
-                        this.dataBuffer = new byte[length];
-                        this.bytesReceived = 0;
+                        this._dataBuffer = new byte[length];
+                        this._bytesReceived = 0;
                         BeginRead();
                     }
                 }
             }
             else
             {
-                if (this.bytesReceived != this.dataBuffer.Length)
+                if (this._bytesReceived != this._dataBuffer.Length)
                 {
                     // We haven't gotten all the data buffer yet
                     BeginRead();
@@ -200,11 +214,11 @@ namespace CS.Network
                 else
                 {
                     // We've gotten an entire packet
-                    PacketRecieved?.Invoke(this, dataBuffer);
+                    PacketRecieved?.Invoke(this, _dataBuffer);
 
                     // Start reading the length buffer again
-                    this.dataBuffer = null;
-                    this.bytesReceived = 0;
+                    this._dataBuffer = null;
+                    this._bytesReceived = 0;
                     BeginRead();
                 }
             }

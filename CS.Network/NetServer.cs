@@ -61,6 +61,18 @@ namespace CS.Network
             _listener.Stop();
         }
 
+        public NetClient AcceptClient()
+        {
+            var tcp = _listener.AcceptTcpClient();
+            Stream stream = tcp.GetStream();
+            if (SSL)
+            {
+                var sslStream = new SslStream(stream, false);
+                sslStream.AuthenticateAsServer(Certificate, false, SslProtocols.Tls12, true);
+                stream = sslStream;
+            }
+            return new NetClient(tcp, stream);
+        }
         public async Task<NetClient> AcceptClientAsync()
         {
             var tcp = await _listener.AcceptTcpClientAsync();
