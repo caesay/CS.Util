@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Reactive.Subjects;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
@@ -16,16 +17,14 @@ namespace CS.Network
     {
         public bool Connected => _client?.Connected == true;
         public EndPoint RemoteEndpoint => _client?.Client.RemoteEndPoint;
-
-        public event EventHandler<ClientEventArgs<Exception>> Error;
-        public event EventHandler<byte[]> PacketRecieved;
-        public event EventHandler Disconnected;
+        public IObservable<PacketRecievedEventArgs> Observable => _observable;
 
         private readonly string _hostname;
         private readonly int _port;
         private readonly bool _ssl;
         private Stream _stream;
         private TcpClient _client;
+        private Subject<PacketRecievedEventArgs> _observable;
 
         public NetClient(string hostname, int port)
             : this(hostname, port, false)
@@ -36,12 +35,13 @@ namespace CS.Network
             _ssl = ssl;
             _hostname = hostname;
             _port = port;
+            _observable = new Subject<PacketRecievedEventArgs>();
         }
         internal NetClient(TcpClient client, Stream stream)
         {
             _client = client;
             _stream = stream;
-            BeginRead();
+            _observable = new Subject<PacketRecievedEventArgs>();
         }
 
         public void Connect()
@@ -49,7 +49,7 @@ namespace CS.Network
             if (Connected)
                 return;
 
-            if(String.IsNullOrEmpty(_hostname) || _port == default(int))
+            if (String.IsNullOrEmpty(_hostname) || _port == default(int))
                 throw new ArgumentException("Specified hostname and Port must not be null.");
 
             _client = new TcpClient();
@@ -90,8 +90,8 @@ namespace CS.Network
         }
         public void Close()
         {
-            _client.Close();
-            _stream.Dispose();
+            _client?.Close();
+            _stream?.Dispose();
             _client = null;
             _stream = null;
         }
@@ -126,6 +126,13 @@ namespace CS.Network
         private byte[] _lengthBuffer;
         private byte[] _dataBuffer;
         private int _bytesReceived;
+        private bool _reading;
+
+        internal void StartReading()
+        {
+            if (_reading) return;
+            BeginRead();
+        }
 
         private void BeginRead()
         {
@@ -147,15 +154,16 @@ namespace CS.Network
             int bytesRead = -1;
             try
             {
+                if (_stream == null || !_stream.CanRead)
+                {
+                    _observable.OnCompleted();
+                    return;
+                }
                 bytesRead = _stream.EndRead(result);
             }
             catch (Exception ex)
             {
-                if (ex.HResult == -2146232800)
-                    Disconnected?.Invoke(this, new EventArgs());
-                else
-                    Error?.Invoke(this, new ClientEventArgs<Exception>(ex));
-                return;
+                _observable.OnError(ex);
             }
 
             // Get the number of bytes read into the buffer
@@ -164,7 +172,7 @@ namespace CS.Network
             // If we get a zero-length read, then that indicates the remote side graciously closed the connection
             if (bytesRead == 0)
             {
-                Disconnected?.Invoke(this, new EventArgs());
+                _observable.OnCompleted();
                 return;
             }
 
@@ -185,7 +193,7 @@ namespace CS.Network
                     // This check will catch 50% of transmission errors that make it past both the IP and Ethernet checksums
                     if (length < 0)
                     {
-                        Error?.Invoke(this, new ClientEventArgs<Exception>(new InvalidDataException("Packet length less than zero (corrupted message)")));
+                        _observable.OnError(new InvalidDataException("Packet length less than zero (corrupted message)"));
                         return;
                     }
 
@@ -214,7 +222,7 @@ namespace CS.Network
                 else
                 {
                     // We've gotten an entire packet
-                    PacketRecieved?.Invoke(this, _dataBuffer);
+                    _observable.OnNext(new PacketRecievedEventArgs(_dataBuffer));
 
                     // Start reading the length buffer again
                     this._dataBuffer = null;
@@ -228,7 +236,7 @@ namespace CS.Network
             if (sslPolicyErrors == SslPolicyErrors.None)
                 return true;
             var ex = new ArgumentException($"Certificate error: {sslPolicyErrors}");
-            Error?.Invoke(this, new ClientEventArgs<Exception>(ex));
+            _observable.OnError(ex);
             throw ex;
         }
     }

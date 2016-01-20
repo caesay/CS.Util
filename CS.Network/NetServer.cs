@@ -61,7 +61,7 @@ namespace CS.Network
             _listener.Stop();
         }
 
-        public NetClient AcceptClient()
+        public AcceptClientCallback AcceptClient()
         {
             var tcp = _listener.AcceptTcpClient();
             Stream stream = tcp.GetStream();
@@ -71,9 +71,9 @@ namespace CS.Network
                 sslStream.AuthenticateAsServer(Certificate, false, SslProtocols.Tls12, true);
                 stream = sslStream;
             }
-            return new NetClient(tcp, stream);
+            return new AcceptClientCallback(new NetClient(tcp, stream));
         }
-        public async Task<NetClient> AcceptClientAsync()
+        public async Task<AcceptClientCallback> AcceptClientAsync()
         {
             var tcp = await _listener.AcceptTcpClientAsync();
             Stream stream = tcp.GetStream();
@@ -83,7 +83,7 @@ namespace CS.Network
                 sslStream.AuthenticateAsServer(Certificate, false, SslProtocols.Tls12, true);
                 stream = sslStream;
             }
-            return new NetClient(tcp, stream);
+            return new AcceptClientCallback(new NetClient(tcp, stream));
         }
 
         private class TcpListenerEx : TcpListener
