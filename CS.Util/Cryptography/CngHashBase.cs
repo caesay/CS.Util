@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using CS.Util.Extensions;
 
 namespace CS.Util.Cryptography
 {
@@ -127,61 +129,85 @@ namespace CS.Util.Cryptography
         }
         public static string Compute(SecureString input, string salt)
         {
-            return ComputeSecureHash(CreateNew(), input, salt);
+            return ComputeSecureHash(CreateNew(), input, Encoding.GetBytes(salt));
         }
         public static string Compute(SecureString input, byte[] salt)
         {
-            return ComputeSecureHash(CreateNew(), input, Encoding.GetString(salt));
+            return ComputeSecureHash(CreateNew(), input, salt);
         }
 
         private static HashAlgorithm CreateNew()
         {
             return Activator.CreateInstance<T>();
         }
-        private static string ComputeSecureHash(HashAlgorithm alg, SecureString input, string salt = "")
+        private static string ComputeSecureHash(HashAlgorithm alg, SecureString input, byte[] salt)
         {
             try
             {
-                byte[] hash = UnmanagedSecureHash(alg, input, Encoding.GetBytes(salt));
+                byte[] hash = UnmanagedSecureHash(alg, input, salt);
                 return HashHelper.GetHashHex(hash);
             }
             catch (Exception e)
             {
-                // fallback to unsafe/managed method.
+                // fallback to managed method (less secure).
                 alg.Initialize();
                 System.Diagnostics.Debug.WriteLine("Error in UnmanagedSecureHash: " + e.Message);
-                byte[] hash;
-                if (SaltPlacement == SaltPlacement.After)
-                {
-                    hash = alg.ComputeHash(Encoding.GetBytes(GetUnSafeString(input) + salt));
-                }
-                else
-                {
-                    hash = alg.ComputeHash(Encoding.GetBytes(salt + GetUnSafeString(input)));
-                }
-                alg.Initialize();
+
+                byte[] hash = ManagedSecureHash(alg, input, salt);
                 return HashHelper.GetHashHex(hash);
             }
         }
-        private static unsafe string GetUnSafeString(SecureString secure)
+
+        private static byte[] ManagedSecureHash(HashAlgorithm alg, SecureString input, byte[] salt)
         {
-            IntPtr ptr = Marshal.SecureStringToBSTR(secure);
-            try
+            byte[] hash = new byte[0];
+            input.UseSecurely(insecure =>
             {
-                return new string((char*)ptr);
-            }
-            finally
-            {
-                Marshal.ZeroFreeBSTR(ptr);
-            }
+                byte[] clearBytes = new byte[0];
+                byte[] clearWithSaltBytes = new byte[0];
+                RuntimeHelpers.ExecuteCodeWithGuaranteedCleanup(
+                    delegate
+                    {
+                        clearBytes = Encoding.GetBytes(insecure);
+                        clearWithSaltBytes = new byte[clearBytes.Length + salt.Length];
+
+                        if (SaltPlacement == SaltPlacement.After)
+                        {
+                            Buffer.BlockCopy(clearBytes, 0, clearWithSaltBytes, 0, clearBytes.Length);
+                            Buffer.BlockCopy(salt, 0, clearWithSaltBytes, clearBytes.Length, salt.Length);
+                        }
+                        else
+                        {
+                            Buffer.BlockCopy(salt, 0, clearWithSaltBytes, 0, salt.Length);
+                            Buffer.BlockCopy(clearBytes, 0, clearWithSaltBytes, salt.Length, clearBytes.Length);
+                        }
+
+                        hash = alg.ComputeHash(clearWithSaltBytes);
+                    },
+                    delegate
+                    {
+                        for (int i = 0; i < clearBytes.Length; i++)
+                            clearBytes[i] = 0;
+                        for (int i = 0; i < clearWithSaltBytes.Length; i++)
+                            clearWithSaltBytes[i] = 0;
+                    }, null);
+            });
+
+            alg.Initialize();
+            return hash;
         }
         private static unsafe byte[] UnmanagedSecureHash(HashAlgorithm impl, SecureString secure, byte[] salt)
         {
-            if (impl == null) throw new ArgumentNullException("implementation");
-            if (secure == null) throw new ArgumentNullException("secureString");
+            if (impl == null) throw new ArgumentNullException(nameof(impl));
+            if (secure == null) throw new ArgumentNullException(nameof(secure));
 
-            var alg = typeof(T).GetField("m_hashAlgorithm", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(impl);
-            var hwnd = (SafeHandle)alg.GetType().GetField("m_hashHandle", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(alg);
+            var algField = typeof(T).GetField("m_hashAlgorithm", BindingFlags.Instance | BindingFlags.NonPublic);
+            if(algField == null) throw new NotSupportedException("Failed to retrieve unmanaged hash handle.");
+            var alg = algField.GetValue(impl);
+
+            var hwndField = alg.GetType().GetField("m_hashHandle", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (hwndField == null) throw new NotSupportedException("Failed to retrieve unmanaged hash handle.");
+            var hwnd = (SafeHandle)hwndField.GetValue(alg);
 
             IntPtr clearText = Marshal.SecureStringToBSTR(secure);
             try
@@ -210,7 +236,7 @@ namespace CS.Util.Cryptography
                 }
                 finally
                 {
-                    HashHelper.ZeroMemory(clearTextWithSalt, (IntPtr)clearTextBytes);
+                    HashHelper.ZeroMemory(clearTextWithSalt, (IntPtr)(clearTextBytes + salt.Length));
                     Marshal.FreeHGlobal(clearTextWithSalt);
                 }
             }

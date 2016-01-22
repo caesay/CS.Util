@@ -13,26 +13,25 @@ namespace CS.Util
 {
     public class Credentials : ICloneable, IDisposable, IEquatable<Credentials>
     {
-        public string Username { get; set; }
-        public SecureString Password { get; set; }
+        public string Username { get; }
+        public SecureString Password { get; }
 
-        public Credentials(string username, string password)
+        public unsafe Credentials(string username, string password)
         {
             Username = username;
-            Password = SecureCreate(password);
+            fixed (char* chPtr = password)
+              Password = new SecureString(chPtr, password.Length);
+        }
+        public unsafe Credentials(string username, char[] password)
+        {
+            Username = username;
+            fixed (char* chPtr = password)
+              Password = new SecureString(chPtr, password.Length);
         }
         public Credentials(string username, SecureString password)
         {
             Username = username;
             Password = password;
-        }
-
-        private unsafe SecureString SecureCreate(string plainString)
-        {
-            SecureString secureString;
-            fixed (char* chPtr = plainString)
-              secureString = new SecureString(chPtr, plainString.Length);
-            return secureString;
         }
 
         public Credentials Clone()
@@ -56,7 +55,7 @@ namespace CS.Util
         }
         public override string ToString()
         {
-            return $"User:{Username}, Pass:********";
+            return $"User:{Username}, Pass:" + new string('*', Password.Length);
         }
         public override int GetHashCode()
         {
