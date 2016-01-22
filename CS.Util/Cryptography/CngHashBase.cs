@@ -21,12 +21,12 @@ namespace CS.Util.Cryptography
     public class CngHashBase<T> where T : HashAlgorithm
     {
         /// <summary>
-        /// This changes the salt placement statically for all of the algorithms that implement HashBase, be warned.
+        /// This changes the salt placement statically.
         /// </summary>
         public static SaltPlacement SaltPlacement { get; set; } = SaltPlacement.After;
 
         /// <summary>
-        /// This changes the encoding statically for all of the algorithms that implement HashBase, be warned.
+        /// This changes the encoding statically.
         /// </summary>
         public static Encoding Encoding { get; set; } = Encoding.UTF8;
 
@@ -53,6 +53,7 @@ namespace CS.Util.Cryptography
         {
             return Compute(Encoding.GetBytes(input), salt);
         }
+
         public static string Compute(byte[] input)
         {
             return Compute(input, "");
@@ -64,21 +65,32 @@ namespace CS.Util.Cryptography
         public static string Compute(byte[] input, byte[] salt)
         {
             byte[] combine = new byte[input.Length + salt.Length];
-            if (SaltPlacement == SaltPlacement.After)
+            var bytesPin = GCHandle.Alloc(combine, GCHandleType.Pinned);
+            try
             {
-                Buffer.BlockCopy(input, 0, combine, 0, input.Length);
-                Buffer.BlockCopy(salt, 0, combine, input.Length, salt.Length);
+                if (SaltPlacement == SaltPlacement.After)
+                {
+                    Buffer.BlockCopy(input, 0, combine, 0, input.Length);
+                    Buffer.BlockCopy(salt, 0, combine, input.Length, salt.Length);
+                }
+                else
+                {
+                    Buffer.BlockCopy(salt, 0, combine, 0, salt.Length);
+                    Buffer.BlockCopy(input, 0, combine, salt.Length, input.Length);
+                }
+                var alg = CreateNew();
+                byte[] hash = alg.ComputeHash(combine);
+                alg.Initialize();
+                return HashHelper.GetHashHex(hash);
             }
-            else
+            finally
             {
-                Buffer.BlockCopy(salt, 0, combine, 0, salt.Length);
-                Buffer.BlockCopy(input, 0, combine, salt.Length, input.Length);
+                for (var i = 0; i < combine.Length; i++)
+                    combine[i] = 0;
+                bytesPin.Free();
             }
-            var alg = CreateNew();
-            byte[] hash = alg.ComputeHash(combine);
-            alg.Initialize();
-            return HashHelper.GetHashHex(hash);
         }
+
         public static string Compute(Stream input)
         {
             var alg = CreateNew();
@@ -123,25 +135,18 @@ namespace CS.Util.Cryptography
             tmp.Initialize();
             return HashHelper.GetHashHex(hash);
         }
+
         public static string Compute(SecureString input)
         {
             return Compute(input, "");
         }
         public static string Compute(SecureString input, string salt)
         {
-            return ComputeSecureHash(CreateNew(), input, Encoding.GetBytes(salt));
+            return Compute(input, Encoding.GetBytes(salt));
         }
         public static string Compute(SecureString input, byte[] salt)
         {
-            return ComputeSecureHash(CreateNew(), input, salt);
-        }
-
-        private static HashAlgorithm CreateNew()
-        {
-            return Activator.CreateInstance<T>();
-        }
-        private static string ComputeSecureHash(HashAlgorithm alg, SecureString input, byte[] salt)
-        {
+            var alg = CreateNew();
             try
             {
                 byte[] hash = UnmanagedSecureHash(alg, input, salt);
@@ -158,43 +163,41 @@ namespace CS.Util.Cryptography
             }
         }
 
+        private static HashAlgorithm CreateNew()
+        {
+            return Activator.CreateInstance<T>();
+        }
         private static byte[] ManagedSecureHash(HashAlgorithm alg, SecureString input, byte[] salt)
         {
-            byte[] hash = new byte[0];
-            input.UseSecurely(insecure =>
+            var bstr = Marshal.SecureStringToBSTR(input);
+            var length = Marshal.ReadInt32(bstr, -4);
+            var bytes = new byte[length + salt.Length];
+
+            var bytesPin = GCHandle.Alloc(bytes, GCHandleType.Pinned);
+            try
             {
-                byte[] clearBytes = new byte[0];
-                byte[] clearWithSaltBytes = new byte[0];
-                RuntimeHelpers.ExecuteCodeWithGuaranteedCleanup(
-                    delegate
-                    {
-                        clearBytes = Encoding.GetBytes(insecure);
-                        clearWithSaltBytes = new byte[clearBytes.Length + salt.Length];
+                if (SaltPlacement == SaltPlacement.After)
+                {
+                    Marshal.Copy(bstr, bytes, 0, length);
+                    Buffer.BlockCopy(salt, 0, bytes, length, salt.Length);
+                }
+                else
+                {
+                    Buffer.BlockCopy(salt, 0, bytes, 0, salt.Length);
+                    Marshal.Copy(bstr, bytes, salt.Length, length);
+                }
 
-                        if (SaltPlacement == SaltPlacement.After)
-                        {
-                            Buffer.BlockCopy(clearBytes, 0, clearWithSaltBytes, 0, clearBytes.Length);
-                            Buffer.BlockCopy(salt, 0, clearWithSaltBytes, clearBytes.Length, salt.Length);
-                        }
-                        else
-                        {
-                            Buffer.BlockCopy(salt, 0, clearWithSaltBytes, 0, salt.Length);
-                            Buffer.BlockCopy(clearBytes, 0, clearWithSaltBytes, salt.Length, clearBytes.Length);
-                        }
-
-                        hash = alg.ComputeHash(clearWithSaltBytes);
-                    },
-                    delegate
-                    {
-                        for (int i = 0; i < clearBytes.Length; i++)
-                            clearBytes[i] = 0;
-                        for (int i = 0; i < clearWithSaltBytes.Length; i++)
-                            clearWithSaltBytes[i] = 0;
-                    }, null);
-            });
-
-            alg.Initialize();
-            return hash;
+                byte[] hash = alg.ComputeHash(bytes);
+                alg.Initialize();
+                return hash;
+            }
+            finally
+            {
+                Marshal.ZeroFreeBSTR(bstr);
+                for (var i = 0; i < bytes.Length; i++)
+                    bytes[i] = 0;
+                bytesPin.Free();
+            }
         }
         private static unsafe byte[] UnmanagedSecureHash(HashAlgorithm impl, SecureString secure, byte[] salt)
         {
@@ -202,7 +205,7 @@ namespace CS.Util.Cryptography
             if (secure == null) throw new ArgumentNullException(nameof(secure));
 
             var algField = typeof(T).GetField("m_hashAlgorithm", BindingFlags.Instance | BindingFlags.NonPublic);
-            if(algField == null) throw new NotSupportedException("Failed to retrieve unmanaged hash handle.");
+            if (algField == null) throw new NotSupportedException("Failed to retrieve unmanaged hash handle.");
             var alg = algField.GetValue(impl);
 
             var hwndField = alg.GetType().GetField("m_hashHandle", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -212,31 +215,31 @@ namespace CS.Util.Cryptography
             IntPtr clearText = Marshal.SecureStringToBSTR(secure);
             try
             {
-                var clearTextBytes = Encoding.GetByteCount((char*)clearText, secure.Length);
-                var clearTextWithSalt = Marshal.AllocHGlobal(clearTextBytes + salt.Length);
+                var clearTextByteLength = Encoding.GetByteCount((char*)clearText, secure.Length);
+                var clearTextWithSalt = Marshal.AllocHGlobal(clearTextByteLength + salt.Length);
                 try
                 {
                     if (SaltPlacement == SaltPlacement.After)
                     {
-                        Marshal.Copy(salt, 0, clearTextWithSalt + clearTextBytes, salt.Length);
-                        Encoding.GetBytes((char*)clearText, secure.Length, (byte*)clearTextWithSalt, clearTextBytes);
+                        Marshal.Copy(salt, 0, clearTextWithSalt + clearTextByteLength, salt.Length);
+                        Encoding.GetBytes((char*)clearText, secure.Length, (byte*)clearTextWithSalt, clearTextByteLength);
                     }
                     else
                     {
                         Marshal.Copy(salt, 0, clearTextWithSalt, salt.Length);
-                        Encoding.GetBytes((char*)clearText, secure.Length, (byte*)(clearTextWithSalt + salt.Length), clearTextBytes);
+                        Encoding.GetBytes((char*)clearText, secure.Length, (byte*)(clearTextWithSalt + salt.Length), clearTextByteLength);
                     }
 
                     Marshal.ZeroFreeBSTR(clearText);
                     clearText = IntPtr.Zero;
 
-                    var error = HashHelper.BCryptHashData(hwnd, clearTextWithSalt, clearTextBytes + salt.Length, 0);
+                    var error = HashHelper.BCryptHashData(hwnd, clearTextWithSalt, clearTextByteLength + salt.Length, 0);
                     if (error != 0)
                         throw new CryptographicException(error);
                 }
                 finally
                 {
-                    HashHelper.ZeroMemory(clearTextWithSalt, (IntPtr)(clearTextBytes + salt.Length));
+                    HashHelper.ZeroMemory(clearTextWithSalt, (IntPtr)(clearTextByteLength + salt.Length));
                     Marshal.FreeHGlobal(clearTextWithSalt);
                 }
             }
@@ -251,5 +254,4 @@ namespace CS.Util.Cryptography
             return hash;
         }
     }
-
 }

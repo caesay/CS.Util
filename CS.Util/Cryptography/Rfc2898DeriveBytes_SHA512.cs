@@ -10,27 +10,16 @@ namespace CS.Util.Cryptography
 {
     public class Rfc2898DeriveBytes_SHA512 : DeriveBytes
     {
-        private byte[] m_buffer;
-        private byte[] m_salt;
-        private HMACSHA512 m_HMACSHA512;  // The pseudo-random generator function used in PBKDF2
+        private byte[] _buffer;
+        private byte[] _salt;
+        private HMACSHA512 _HMACSHA512;  // The pseudo-random generator function used in PBKDF2
 
-        private uint m_iterations;
-        private uint m_block;
-        private int m_startIndex;
-        private int m_endIndex;
-        private static RNGCryptoServiceProvider _rng;
-        private static RNGCryptoServiceProvider StaticRandomNumberGenerator
-        {
-            get
-            {
-                if (_rng == null)
-                {
-                    
-                    _rng = new RNGCryptoServiceProvider();
-                }
-                return _rng;
-            }
-        }
+        private uint _iterations;
+        private uint _block;
+        private int _startIndex;
+        private int _endIndex;
+
+        private static RNGCryptoServiceProvider _rng = new RNGCryptoServiceProvider();
 
         private const int BlockSize = 20;
 
@@ -41,11 +30,11 @@ namespace CS.Util.Cryptography
                 throw new ArgumentOutOfRangeException("saltSize", "Salt size must be positive.");
 
             byte[] salt = new byte[saltSize];
-            StaticRandomNumberGenerator.GetBytes(salt);
+            _rng.GetBytes(salt);
 
             Salt = salt;
             IterationCount = iterations;
-            m_HMACSHA512 = new HMACSHA512(new UTF8Encoding(false).GetBytes(password));
+            _HMACSHA512 = new HMACSHA512(new UTF8Encoding(false).GetBytes(password));
             Initialize();
         }
         public Rfc2898DeriveBytes_SHA512(string password, byte[] salt) : this(password, salt, 1000) { }
@@ -54,36 +43,34 @@ namespace CS.Util.Cryptography
         {
             Salt = salt;
             IterationCount = iterations;
-            m_HMACSHA512 = new HMACSHA512(password);
+            _HMACSHA512 = new HMACSHA512(password);
             Initialize();
         }
 
-
         public int IterationCount
         {
-            get { return (int)m_iterations; }
+            get { return (int)_iterations; }
             set
             {
                 if (value <= 0)
                     throw new ArgumentOutOfRangeException("value", "value must be positive");
-                m_iterations = (uint)value;
+                _iterations = (uint)value;
                 Initialize();
             }
         }
         public byte[] Salt
         {
-            get { return (byte[])m_salt.Clone(); }
+            get { return (byte[])_salt.Clone(); }
             set
             {
                 if (value == null)
                     throw new ArgumentNullException("value");
                 if (value.Length < 8)
                     throw new ArgumentException("Salt must be at least 8 chatacters");
-                m_salt = (byte[])value.Clone();
+                _salt = (byte[])value.Clone();
                 Initialize();
             }
         }
-
 
         public override byte[] GetBytes(int cb)
         {
@@ -92,19 +79,19 @@ namespace CS.Util.Cryptography
             byte[] password = new byte[cb];
 
             int offset = 0;
-            int size = m_endIndex - m_startIndex;
+            int size = _endIndex - _startIndex;
             if (size > 0)
             {
                 if (cb >= size)
                 {
-                    Buffer.BlockCopy(m_buffer, m_startIndex, password, 0, size);
-                    m_startIndex = m_endIndex = 0;
+                    Buffer.BlockCopy(_buffer, _startIndex, password, 0, size);
+                    _startIndex = _endIndex = 0;
                     offset += size;
                 }
                 else
                 {
-                    Buffer.BlockCopy(m_buffer, m_startIndex, password, 0, cb);
-                    m_startIndex += cb;
+                    Buffer.BlockCopy(_buffer, _startIndex, password, 0, cb);
+                    _startIndex += cb;
                     return password;
                 }
             }
@@ -124,8 +111,8 @@ namespace CS.Util.Cryptography
                 {
                     Buffer.BlockCopy(T_block, 0, password, offset, remainder);
                     offset += remainder;
-                    Buffer.BlockCopy(T_block, remainder, m_buffer, m_startIndex, BlockSize - remainder);
-                    m_endIndex += (BlockSize - remainder);
+                    Buffer.BlockCopy(T_block, remainder, _buffer, _startIndex, BlockSize - remainder);
+                    _endIndex += (BlockSize - remainder);
                     return password;
                 }
             }
@@ -138,11 +125,11 @@ namespace CS.Util.Cryptography
 
         private void Initialize()
         {
-            if (m_buffer != null)
-                Array.Clear(m_buffer, 0, m_buffer.Length);
-            m_buffer = new byte[BlockSize];
-            m_block = 1;
-            m_startIndex = m_endIndex = 0;
+            if (_buffer != null)
+                Array.Clear(_buffer, 0, _buffer.Length);
+            _buffer = new byte[BlockSize];
+            _block = 1;
+            _startIndex = _endIndex = 0;
         }
         internal static byte[] Int(uint i)
         {
@@ -155,17 +142,17 @@ namespace CS.Util.Cryptography
         // where i is the block number. 
         private byte[] Func()
         {
-            byte[] INT_block = Int(m_block);
+            byte[] INT_block = Int(_block);
 
-            m_HMACSHA512.TransformBlock(m_salt, 0, m_salt.Length, m_salt, 0);
-            m_HMACSHA512.TransformFinalBlock(INT_block, 0, INT_block.Length);
-            byte[] temp = m_HMACSHA512.Hash;
-            m_HMACSHA512.Initialize();
+            _HMACSHA512.TransformBlock(_salt, 0, _salt.Length, _salt, 0);
+            _HMACSHA512.TransformFinalBlock(INT_block, 0, INT_block.Length);
+            byte[] temp = _HMACSHA512.Hash;
+            _HMACSHA512.Initialize();
 
             byte[] ret = temp;
-            for (int i = 2; i <= m_iterations; i++)
+            for (int i = 2; i <= _iterations; i++)
             {
-                temp = m_HMACSHA512.ComputeHash(temp);
+                temp = _HMACSHA512.ComputeHash(temp);
                 for (int j = 0; j < BlockSize; j++)
                 {
                     ret[j] ^= temp[j];
@@ -173,7 +160,7 @@ namespace CS.Util.Cryptography
             }
 
             // increment the block count.
-            m_block++;
+            _block++;
             return ret;
         }
 

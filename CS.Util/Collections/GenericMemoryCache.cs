@@ -4,13 +4,14 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Runtime.Caching;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace CS.Util.Collections
 {
     /// <summary>
-    /// Provides a wrapper around the .Net MemoryCache that provides type safety for the value only.
+    /// Provides a wrapper around the .Net MemoryCache that provides type safety for the value.
     /// </summary>
     /// <typeparam name="TValue">The type of the object to be stored.</typeparam>
     public class GenericMemoryCache<TValue> : IGenericCache<string, TValue>
@@ -170,30 +171,30 @@ namespace CS.Util.Collections
 
     /// <summary>
     /// A wrapper around the .Net MemoryCache that provides type safety for the value, and also supports 
-    /// a non-string key type. The key object should implement IEquatable, or a custom IEqualityComparer should be
-    /// specified in the constructor.
+    /// a non-string key type. This implementation stores an additional WeakReference for each cache object
+    /// so its slower and has a higher overhead than the standard <see cref="GenericMemoryCache{T}" />
+    /// or <see cref="MemoryCache"/>
     /// </summary>
-    /// <typeparam name="TKey">The cache lookup key, should implement GetHashCode and/or implement IEquatable</typeparam>
+    /// <typeparam name="TKey">The cache lookup key</typeparam>
     /// <typeparam name="TValue">The type of the value to be stored</typeparam>
     public class GenericMemoryCache<TKey, TValue> : IGenericCache<TKey, TValue>
+        where TKey : class
+        where TValue : class
     {
         public long Count
         {
             get { return _internal.Count; }
         }
 
-        private readonly IEqualityComparer<TKey> _comparer;
+        private readonly ConditionalWeakTable<TKey, string> _weakTable;
         private readonly GenericMemoryCache<GenericCacheItem<TKey, TValue>> _internal;
 
         public GenericMemoryCache()
-            :this(EqualityComparer<TKey>.Default)
         {
-        }
-        public GenericMemoryCache(IEqualityComparer<TKey> comparer)
-        {
-            _comparer = comparer;
+            _weakTable = new ConditionalWeakTable<TKey, string>();
             _internal = new GenericMemoryCache<GenericCacheItem<TKey, TValue>>();
         }
+
         ~GenericMemoryCache()
         {
             Dispose();
@@ -205,18 +206,32 @@ namespace CS.Util.Collections
 
         public TValue Get(TKey key)
         {
-            string skey = _comparer.GetHashCode(key).ToString();
-            return _internal.Get(skey).Value;
+            string token;
+            bool exists = _weakTable.TryGetValue(key, out token);
+
+            return exists
+                ? _internal.Get(token)?.Value
+                : null;
         }
-        public IDictionary<TKey, TValue> GetRange(IEnumerable<TKey> keys)
+        IDictionary<TKey, TValue> IGenericCache<TKey, TValue>.GetRange(IEnumerable<TKey> keys)
         {
-            return _internal.GetRange(keys.Select(s => _comparer.GetHashCode(s).ToString()))
-                .ToDictionary(kvp => kvp.Value.Key, kvp => kvp.Value.Value);
+            throw new NotImplementedException();
         }
 
         public void Add(GenericCacheItem<TKey, TValue> item, CacheItemPolicy policy)
         {
-            _internal.Add(_comparer.GetHashCode(item.Key).ToString(), item, policy);
+            string unused;
+            if (_weakTable.TryGetValue(item.Key, out unused))
+            {
+                if (_internal.ContainsKey(unused))
+                    throw new InvalidOperationException("Provided object key already exists in this cache.");
+                else
+                    _weakTable.Remove(item.Key);
+            }
+
+            string token = Guid.NewGuid().ToString();
+            _weakTable.Add(item.Key, token);
+            _internal.Add(token, item, policy);
         }
         public void Add(TKey key, TValue value, CacheItemPolicy policy)
         {
@@ -224,7 +239,14 @@ namespace CS.Util.Collections
         }
         public void Set(GenericCacheItem<TKey, TValue> item, CacheItemPolicy policy)
         {
-            _internal.Set(_comparer.GetHashCode(item.Key).ToString(), item, policy);
+            string token;
+            bool exists = _weakTable.TryGetValue(item.Key, out token);
+            if (!exists)
+            {
+                token = new Guid().ToString();
+                _weakTable.Add(item.Key, token);
+            }
+            _internal.Set(token, item, policy);
         }
         public void Set(TKey key, TValue value, CacheItemPolicy policy)
         {
@@ -233,10 +255,18 @@ namespace CS.Util.Collections
 
         public TValue Delete(TKey key)
         {
-            return _internal.Delete(_comparer.GetHashCode(key).ToString()).Value;
+            string token;
+            bool exists = _weakTable.TryGetValue(key, out token);
+            if (exists)
+            {
+                _weakTable.Remove(key);
+                return _internal.Delete(token)?.Value;
+            }
+            return null;
         }
         public void Clear()
         {
+            _internal.Select(k => k.Value?.Key).ToList().ForEach(k => _weakTable.Remove(k));
             _internal.Clear();
         }
 
@@ -251,7 +281,8 @@ namespace CS.Util.Collections
 
         public bool ContainsKey(TKey key)
         {
-            return _internal.ContainsKey(_comparer.GetHashCode(key).ToString());
+            string token;
+            return _weakTable.TryGetValue(key, out token) && _internal.ContainsKey(token);
         }
     }
 
