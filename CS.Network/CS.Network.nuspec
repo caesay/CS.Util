@@ -1,0 +1,15 @@
+﻿<?xml version="1.0"?>
+<package>
+  <metadata>
+    <id>CS.Network</id>
+    <version>$version$</version>
+    <title>CS.Network</title>
+    <authors>caesay</authors>
+    <owners>caesay</owners>
+    <projectUrl>https://github.com/caesay/CS.Util</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Utility library. Contains TcpClient and TcpListener wrappers.</description>
+    <copyright>Copyright 2015 Caelan Sayler</copyright>
+    <tags>C#</tags>
+  </metadata>
+</package>

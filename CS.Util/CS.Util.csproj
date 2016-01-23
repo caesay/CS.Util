@@ -91,6 +91,7 @@
     <Compile Include="RandomEx.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="CS.Util.nuspec" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
