@@ -131,6 +131,7 @@ namespace CS.Network
         internal void StartReading()
         {
             if (_reading) return;
+            _reading = true;
             BeginRead();
         }
 
