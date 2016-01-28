@@ -65,6 +65,7 @@
     <Compile Include="Cryptography\DeriveBytesBase.cs" />
     <Compile Include="Cryptography\HashHelper.cs" />
     <Compile Include="Cryptography\Rfc2898DeriveBytes_SHA512.cs" />
+    <Compile Include="EndianBitConverter.cs" />
     <Compile Include="EqualityComparers.cs" />
     <Compile Include="Extensions\EmitExtensions.cs" />
     <Compile Include="Dynamic\Instruction.cs" />
