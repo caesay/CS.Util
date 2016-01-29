@@ -1,32 +1,8 @@
 ﻿using System;
+using System.Linq;
 
 namespace CS.Util
 {
-    public interface IBitConverter
-    {
-        byte[] GetBytes(bool value);
-        byte[] GetBytes(char value);
-        byte[] GetBytes(short value);
-        byte[] GetBytes(int value);
-        byte[] GetBytes(long value);
-        byte[] GetBytes(ushort value);
-        byte[] GetBytes(uint value);
-        byte[] GetBytes(ulong value);
-        byte[] GetBytes(float value);
-        byte[] GetBytes(double value);
-
-        char ToChar(byte[] value, int index);
-        short ToInt16(byte[] value, int index);
-        int ToInt32(byte[] value, int index);
-        long ToInt64(byte[] value, int index);
-        ushort ToUInt16(byte[] value, int index);
-        uint ToUInt32(byte[] value, int index);
-        ulong ToUInt64(byte[] value, int index);
-        float ToSingle(byte[] value, int index);
-        double ToDouble(byte[] value, int index);
-        bool ToBoolean(byte[] value, int index);
-    }
-
     internal sealed class BigEndianBitConverter : EndianBitConverter
     {
         public override bool IsLittleEndian => false;
@@ -76,12 +52,12 @@ namespace CS.Util
         }
     }
 
-    public abstract class EndianBitConverter : IBitConverter
+    public abstract class EndianBitConverter
     {
         public abstract bool IsLittleEndian { get; }
 
-        public static IBitConverter Big => _big ?? (_big = new BigEndianBitConverter());
-        public static IBitConverter Little => _little ?? (_little = new LittleEndianBitConverter());
+        public static EndianBitConverter Big => _big ?? (_big = new BigEndianBitConverter());
+        public static EndianBitConverter Little => _little ?? (_little = new LittleEndianBitConverter());
 
         private static BigEndianBitConverter _big;
         private static LittleEndianBitConverter _little;
@@ -146,6 +122,13 @@ namespace CS.Util
         {
             return GetBytes(*(long*)&value);
         }
+        [Obsolete("This approach is not standardized. The recommended approach is to down-cast to a double instead.")]
+        public byte[] GetBytes(decimal value)
+        {
+            // there is no real specified format for transmitting C# decimals (128bits).
+            // this will write four sequential 
+            return decimal.GetBits(value).SelectMany(GetBytes).ToArray();
+        }
 
         public char ToChar(byte[] value, int index = 0)
         {
@@ -188,6 +171,18 @@ namespace CS.Util
         public bool ToBoolean(byte[] value, int index = 0)
         {
             return BitConverter.ToBoolean(value, index);
+        }
+        public decimal ToDecimal(byte[] value, int index = 0)
+        {
+            // there is no real format for transmitting decimals (128bits).
+            // this basically assumes there will be four sequential 32bit integers
+            // all in their own endianness.
+            int[] parts = new int[4];
+            for (int i = 0; i < 4; i++)
+            {
+                parts[i] = ToInt32(value, index + i * 4);
+            }
+            return new decimal(parts);
         }
     }
 }
