@@ -19,9 +19,9 @@ namespace CS.Util
             new TimeUnit(1000*60*60*24*7 ,"week", "weeks"),
             new TimeUnit(2629743830L ,"month", "months"),
             new TimeUnit(2629743830L * 12L, "year", "years"),
-            new TimeUnit(315569259747L ,"decade", "decades"),
-            new TimeUnit(3155692597470L ,"century", "centuries"),
-            new TimeUnit(31556926000000L ,"millennium", "millennia"),
+            //new TimeUnit(315569259747L ,"decade", "decades"),
+            //new TimeUnit(3155692597470L ,"century", "centuries"),
+            //new TimeUnit(31556926000000L ,"millennium", "millennia"),
         };
 
         public static string Format(DateTime date)
@@ -29,10 +29,14 @@ namespace CS.Util
             var duration = GetDuration(date, DateTime.Now);
             return duration.Unit.Format(duration);
         }
-
-        private static Duration GetDuration(DateTime then, DateTime now)
+        public static string Format(TimeSpan time)
         {
-            TimeSpan ts = then - now;
+            var duration = GetDuration(time);
+            return duration.Unit.Format(duration);
+        }
+
+        private static Duration GetDuration(TimeSpan ts)
+        {
             long difference = Convert.ToInt64(Math.Floor(ts.TotalMilliseconds));
             long absoluteDifference = Math.Abs(difference);
 
@@ -60,7 +64,9 @@ namespace CS.Util
                     }
                     else
                     {
-                        result.Quantity = difference / millisPerUnit;
+                        //result.Quantity = (long)Math.Ceiling((double)difference / millisPerUnit);
+                        var d = Math.Round(difference/(double) millisPerUnit);
+                        result.Quantity = (long)(d);
                     }
 
                     result.Delta = difference - result.Quantity * millisPerUnit;
@@ -68,6 +74,11 @@ namespace CS.Util
                 }
             }
             return result;
+        }
+        private static Duration GetDuration(DateTime then, DateTime now)
+        {
+            TimeSpan ts = then - now;
+            return GetDuration(ts);
         }
 
         internal class Duration

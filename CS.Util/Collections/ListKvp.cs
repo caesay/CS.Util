@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace CS.Util.Collections
 {
     /// <summary>
-    /// Wraps <![CDATA[List<KeyValuePair<TKey, TValue>]]>, providing some helper methods to make it less painful.
+    /// Wraps List&lt;KeyValuePair&lt;TKey, TValue&gt;&gt;, providing some helper methods to make it less painful.
     /// </summary>
     public class ListKvp<TKey, TValue> : List<KeyValuePair<TKey, TValue>>
     {

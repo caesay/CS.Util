@@ -21,13 +21,28 @@ namespace CS.Util
             return obj.FullName.GetHashCode();
         }
     }
-   
-    public class DynamicComparer<T> : IEqualityComparer<T>
+
+    public class CustomEqualityComparer
+    {
+        public static CustomEqualityComparer<T> From<T>(Func<T, T, bool> equals)
+        {
+            return new CustomEqualityComparer<T>(equals, EqualityComparer<T>.Default.GetHashCode);
+        }
+        public static CustomEqualityComparer<T> From<T>(Func<T, int> getHashCode)
+        {
+            return new CustomEqualityComparer<T>(EqualityComparer<T>.Default.Equals, getHashCode);
+        }
+        public static CustomEqualityComparer<T> From<T>(Func<T, T, bool> equals, Func<T, int> getHashCode)
+        {
+            return new CustomEqualityComparer<T>(equals, getHashCode);
+        }
+    }
+    public class CustomEqualityComparer<T> : CustomEqualityComparer, IEqualityComparer<T>
     {
         private readonly Func<T, T, bool> _equals;
         private readonly Func<T, int> _getHashCode;
 
-        public DynamicComparer(Func<T, T, bool> equals, Func<T, int> getHashCode)
+        public CustomEqualityComparer(Func<T, T, bool> equals, Func<T, int> getHashCode)
         {
             _equals = @equals;
             _getHashCode = getHashCode;
@@ -41,19 +56,6 @@ namespace CS.Util
         public int GetHashCode(T obj)
         {
             return _getHashCode(obj);
-        }
-
-        public static DynamicComparer<T> From(Func<T, T, bool> equals)
-        {
-            return new DynamicComparer<T>(equals, EqualityComparer<T>.Default.GetHashCode);
-        }
-        public static DynamicComparer<T> From(Func<T, int> getHashCode)
-        {
-            return new DynamicComparer<T>(EqualityComparer<T>.Default.Equals, getHashCode);
-        }
-        public static DynamicComparer<T> From(Func<T, T, bool> equals, Func<T, int> getHashCode)
-        {
-            return new DynamicComparer<T>(equals, getHashCode);
         }
     }
 }

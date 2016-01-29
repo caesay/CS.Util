@@ -104,6 +104,10 @@ namespace CS.Util.Extensions
         {
             return PrettyTime.Format(date);
         }
+        public static string AsPrettyString(this TimeSpan time)
+        {
+            return PrettyTime.Format(time);
+        }
 
         public static byte[] GetBytes(this bool value, bool inLittleEndian = true)
         {

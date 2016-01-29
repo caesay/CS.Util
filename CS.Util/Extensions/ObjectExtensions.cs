@@ -36,14 +36,22 @@ namespace CS.Util.Extensions
             if (hashCodes.Count == 1)
                 return hashCodes[0];
 
+            return GetAutoHashCode(null, hashCodes.ToArray());
+        }
+        public static int GetAutoHashCode(this object obj, params object[] members)
+        {
+            return GetAutoHashCode(obj, members.Select(o => o.GetHashCode()).ToArray());
+        }
+        public static int GetAutoHashCode(this object obj, params int[] members)
+        {
             // this is pretty much randomly selected, some people on SOF said that they were good numbers :)
             const int b = 378551;
             int a = 63689;
-            int hash = hashCodes.Count + 1;
+            int hash = members.Count() + 1;
 
             unchecked
             {
-                foreach (var code in hashCodes)
+                foreach (var code in members)
                 {
                     hash = hash * a + code;
                     a = a * b;
@@ -53,7 +61,7 @@ namespace CS.Util.Extensions
         }
 
         /// <summary> Returns true if this value is equal to the default value for this type.</summary>
-        public static bool IsDefault<T>(this T val) where T : struct
+        public static bool IsDefault<T>(this T val)
         {
             return val.Equals(default(T));
         }
@@ -95,8 +103,8 @@ namespace CS.Util.Extensions
                                 passwordPtr = Marshal.SecureStringToBSTR(secureString);
                             }
 
-                            var pPassword = (char*) passwordPtr;
-                            var pInsecurePassword = (char*) gch.AddrOfPinnedObject();
+                            var pPassword = (char*)passwordPtr;
+                            var pInsecurePassword = (char*)gch.AddrOfPinnedObject();
                             for (int index = 0; index < length; index++)
                             {
                                 pInsecurePassword[index] = pPassword[index];
@@ -117,7 +125,7 @@ namespace CS.Util.Extensions
                     if (gch.IsAllocated)
                     {
                         // Zero the string.
-                        var pInsecurePassword = (char*) gch.AddrOfPinnedObject();
+                        var pInsecurePassword = (char*)gch.AddrOfPinnedObject();
                         for (int index = 0; index < length; index++)
                         {
                             pInsecurePassword[index] = '\0';
@@ -127,8 +135,6 @@ namespace CS.Util.Extensions
                 }, null);
 
         }
-
-
     }
 
     [Flags]

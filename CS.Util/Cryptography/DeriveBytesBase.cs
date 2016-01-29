@@ -6,6 +6,7 @@ using System.Security;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using CS.Util.Extensions;
 
 namespace CS.Util.Cryptography
 {
@@ -71,12 +72,20 @@ namespace CS.Util.Cryptography
 
         private static byte[] GetBytes(int dklen, byte[] password, byte[] salt, int iterationCount)
         {
-            // create instance of generator
-            var generator = Activator.CreateInstance<TGen>();
-            // create instance of DeriveBytes using generator
-            using (var alg = generator.CreateNew(password, salt, iterationCount))
+            TGen generator = null;
+            try
             {
-                return alg.GetBytes(dklen);
+                generator = Activator.CreateInstance<TGen>();
+                // create instance of DeriveBytes using generator
+                using (var alg = generator.CreateNew(password, salt, iterationCount))
+                {
+                    return alg.GetBytes(dklen);
+                }
+            }
+            finally
+            {
+                if(generator is IDisposable)
+                    ((IDisposable)generator).Dispose();
             }
         }
     }

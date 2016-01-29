@@ -185,11 +185,11 @@ namespace CS.Util
         }
         public override int GetHashCode()
         {
-            return this.GetAutoHashCode(MemberSelector.PrivateFields);
+            return this.GetAutoHashCode(_hue, _sat, _lum);
         }
         public override string ToString()
         {
-            return $"{{Hue:{Hue}, Saturation:{Saturation}, Lightness:{Lightness}}}";
+            return $"HSLColor:{{H:{Hue}, S:{Saturation}, L:{Lightness}}}";
         }
     }
 }
