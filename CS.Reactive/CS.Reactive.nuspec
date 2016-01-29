@@ -1,15 +1,15 @@
 ﻿<?xml version="1.0"?>
 <package>
   <metadata>
-    <id>CS.Network</id>
+    <id>CS.Reactive</id>
     <version>$version$</version>
-    <title>CS.Network</title>
+    <title>CS.Reactive</title>
     <authors>caesay</authors>
     <owners>caesay</owners>
     <projectUrl>https://github.com/caesay/CS.Util</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <description>Utility library. Contains TcpClient and TcpListener wrappers.</description>
+    <description>Utility library. Contains TcpClient and TcpListener wrappers, along with other things that utilize the Reactive framework.</description>
     <copyright>Copyright 2015 Caelan Sayler</copyright>
-    <tags>C#</tags>
+    <tags>C# Rx</tags>
   </metadata>
 </package>

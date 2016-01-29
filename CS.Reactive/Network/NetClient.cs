@@ -5,19 +5,20 @@ using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace CS.Network
+namespace CS.Reactive
 {
     public class NetClient : IDisposable
     {
         public bool Connected => _client?.Connected == true;
         public EndPoint RemoteEndpoint => _client?.Client.RemoteEndPoint;
-        public IObservable<PacketRecievedEventArgs> Observable => _observable;
+        public IObservable<PacketRecievedEventArgs> PacketRecieved => _observable.AsObservable();
 
         private readonly string _hostname;
         private readonly int _port;

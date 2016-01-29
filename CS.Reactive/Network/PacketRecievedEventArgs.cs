@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace CS.Network
+namespace CS.Reactive
 {
     public class PacketRecievedEventArgs : EventArgs
     {
