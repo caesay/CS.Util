@@ -10,23 +10,18 @@ using CS.Util.Extensions;
 
 namespace CS.Util.Cryptography
 {
-    public abstract class DeriveBytesGenerator<T>
+    public abstract class DeriveBytesBase<T> : IDisposable
+        where T : DeriveBytesBase<T>
     {
-        internal DeriveBytesGenerator()
-        {
-        }
-        public abstract T CreateNew(byte[] password, byte[] salt, int iterations);
-    }
-    public class DeriveBytesBase<TAlg, TGen>
-       where TAlg : DeriveBytes
-       where TGen : DeriveBytesGenerator<TAlg>
-    {
-        public static Encoding Encoding { get; set; } = Encoding.UTF8;
-        public static int Iterations { get; set; } = 5000;
-        public static int DerivedKeyLength { get; set; } = 20;
+        public static Encoding Encoding => Encoding.UTF8;
+        public static int Iterations => 64000;
 
         internal DeriveBytesBase()
         {
+        }
+        ~DeriveBytesBase()
+        {
+            Dispose(false);
         }
 
         public static string Compute(string password, string salt)
@@ -43,7 +38,8 @@ namespace CS.Util.Cryptography
         }
         public static string Compute(byte[] password, byte[] salt)
         {
-            return Convert.ToBase64String(GetBytes(DerivedKeyLength, password, salt, Iterations));
+            using (var inst = Activator.CreateInstance<T>())
+                return Convert.ToBase64String(inst.GetBytes(password, salt, Iterations));
         }
         public static string Compute(SecureString password, string salt)
         {
@@ -59,7 +55,7 @@ namespace CS.Util.Cryptography
             try
             {
                 Marshal.Copy(bstr, bytes, 0, length);
-                return Convert.ToBase64String(GetBytes(DerivedKeyLength, bytes, salt, Iterations));
+                return Compute(bytes, salt);
             }
             finally
             {
@@ -70,23 +66,19 @@ namespace CS.Util.Cryptography
             }
         }
 
-        private static byte[] GetBytes(int dklen, byte[] password, byte[] salt, int iterationCount)
+        public static byte[] GetDerivedKey(int dklen, byte[] password, byte[] salt, int iterations)
         {
-            TGen generator = null;
-            try
-            {
-                generator = Activator.CreateInstance<TGen>();
-                // create instance of DeriveBytes using generator
-                using (var alg = generator.CreateNew(password, salt, iterationCount))
-                {
-                    return alg.GetBytes(dklen);
-                }
-            }
-            finally
-            {
-                if(generator is IDisposable)
-                    ((IDisposable)generator).Dispose();
-            }
+            using (var inst = Activator.CreateInstance<T>())
+                return inst.GetBytes(password, salt, iterations, dklen);
+        }
+
+        protected abstract byte[] GetBytes(byte[] password, byte[] salt, int iterationCount, int? derivedKeyLength = null);
+
+        protected virtual void Dispose(bool disposing) { }
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
     }
 }

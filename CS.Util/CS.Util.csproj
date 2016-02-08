@@ -64,7 +64,7 @@
     <Compile Include="Cryptography\CngHashBase.cs" />
     <Compile Include="Cryptography\DeriveBytesBase.cs" />
     <Compile Include="Cryptography\HashHelper.cs" />
-    <Compile Include="Cryptography\Rfc2898DeriveBytes_SHA512.cs" />
+    <Compile Include="Cryptography\PBKDF2.cs" />
     <Compile Include="EndianBitConverter.cs" />
     <Compile Include="EqualityComparers.cs" />
     <Compile Include="Extensions\EmitExtensions.cs" />
@@ -78,7 +78,7 @@
     <Compile Include="Cryptography\Hashers.cs" />
     <Compile Include="Extensions\StreamExtensions.cs" />
     <Compile Include="Extensions\StringExtensions.cs" />
-    <Compile Include="HSLColor.cs" />
+    <Compile Include="HSLAColor.cs" />
     <Compile Include="Input\GlobalHook.cs" />
     <Compile Include="Input\HotKey.cs" />
     <Compile Include="Input\KeyboardHook.cs" />

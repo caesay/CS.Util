@@ -72,8 +72,23 @@ namespace CS.Util.Extensions
         /// </summary>
         /// <param name="secureString">The secure string to load</param>
         /// <param name="action">The action to invoke with the plain-text string</param>
-        public static unsafe void UseSecurely(this SecureString secureString, Action<string> action)
+        public static void UseSecurely(this SecureString secureString, Action<string> action)
         {
+            secureString.UseSecurely<object>((p) =>
+            {
+                action(p);
+                return null;
+            });
+        }
+        /// <summary>
+        /// Provides a method to use a SecureString in such a way that guarentees the string memory won't be leaked or
+        /// remain in managed memory after the action is completed.
+        /// </summary>
+        /// <param name="secureString">The secure string to load</param>
+        /// <param name="action">The function to invoke with the plain-text string</param>
+        public static unsafe T UseSecurely<T>(this SecureString secureString, Func<string, T> action)
+        {
+            T result = default(T);
             int length = secureString.Length;
             var insecurePassword = new string('\0', length);
 
@@ -90,6 +105,7 @@ namespace CS.Util.Extensions
                         gch = GCHandle.Alloc(insecurePassword, GCHandleType.Pinned);
                     }
 
+                    // copy the secure password bits over to the pinned insecurePassword
                     IntPtr passwordPtr = IntPtr.Zero;
                     RuntimeHelpers.ExecuteCodeWithGuaranteedCleanup(
                         delegate
@@ -114,17 +130,19 @@ namespace CS.Util.Extensions
                         {
                             if (passwordPtr != IntPtr.Zero)
                             {
+                                // zero the unmanaged string
                                 Marshal.ZeroFreeBSTR(passwordPtr);
                             }
                         }, null);
 
-                    action(insecurePassword);
+                    // execute specified action
+                    result = action(insecurePassword);
                 },
                 delegate
                 {
                     if (gch.IsAllocated)
                     {
-                        // Zero the string.
+                        // zero the managed string
                         var pInsecurePassword = (char*)gch.AddrOfPinnedObject();
                         for (int index = 0; index < length; index++)
                         {
@@ -133,12 +151,14 @@ namespace CS.Util.Extensions
                         gch.Free();
                     }
                 }, null);
-
+            return result;
         }
+
     }
 
+
     [Flags]
-    public enum MemberSelector
+    public enum MemberSelector : short
     {
         PublicProperties = 1,
         PrivateProperties = 2,

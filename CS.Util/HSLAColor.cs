@@ -8,8 +8,15 @@ using CS.Util.Extensions;
 
 namespace CS.Util
 {
-    public class HSLColor : ICloneable, IEquatable<HSLColor>
+    /// <summary>
+    /// Represents a color in HSLA format (Hue, Saturation, Lightness, Alpha). 
+    /// This class can be interchanged implicitly with the built-in Color classes.
+    /// </summary>
+    public class HSLAColor : ICloneable, IEquatable<HSLAColor>
     {
+        /// <summary>
+        /// This is a value from 0 to 360 inclusive that represents the current color.
+        /// </summary>
         public double Hue
         {
             get
@@ -23,34 +30,54 @@ namespace CS.Util
                 _hue = value / 60d;
             }
         }
+        /// <summary>
+        /// This is a value from 0 to 100 inclusive that represents the intensity of the current Hue. 
+        /// 0 is solid gray with no color at all, 100 is full color saturation (default 100)
+        /// </summary>
         public double Saturation
         {
             get { return _sat * 100; }
             set { _sat = value / 100; }
         }
+        /// <summary>
+        /// This is a value from 0 to 100 inclusive that represents the light or darkness of the current Hue. 
+        /// 0 is solid black, and 100 is solid white irrespective of the Hue or Saturation. (default 50)
+        /// </summary>
         public double Lightness
         {
             get { return _lum * 100; }
             set { _lum = value / 100; }
         }
+        /// <summary>
+        /// This is a value from 0 to 100 inclusive that represents the transparency of the current color.
+        /// 0 is completely transparent, and 100 is fully opaque. (default 100)
+        /// </summary>
+        public double Alpha
+        {
+            get { return _alp * 100; }
+            set { _alp = value / 100; }
+        }
 
         private double _hue;
         private double _sat;
         private double _lum;
+        private double _alp;
 
-        private HSLColor(double H, double S, double L)
+        private HSLAColor(double H, double S, double L, double A)
         {
             _hue = H;
             _sat = S;
             _lum = L;
+            _alp = A;
         }
 
-        public static HSLColor FromRGB(Color color)
+        public static HSLAColor FromARGB(Color color)
         {
-            return FromRGB(color.R, color.G, color.B);
+            return FromARGB(color.A, color.R, color.G, color.B);
         }
-        public static HSLColor FromRGB(byte R, byte G, byte B)
+        public static HSLAColor FromARGB(byte A, byte R, byte G, byte B)
         {
+            double _A = (A / 255d);
             double _R = (R / 255d);
             double _G = (G / 255d);
             double _B = (B / 255d);
@@ -89,11 +116,11 @@ namespace CS.Util
                 }
             }
 
-            return new HSLColor(H, S, L);
+            return new HSLAColor(H, S, L, _A);
         }
-        public static HSLColor FromRGB(System.Drawing.Color color)
+        public static HSLAColor FromARGB(System.Drawing.Color color)
         {
-            return FromRGB(color.R, color.G, color.B);
+            return FromARGB(color.A, color.R, color.G, color.B);
         }
 
         private static double HueToColor(double c, double t1, double t2)
@@ -106,9 +133,10 @@ namespace CS.Util
             return t1;
         }
 
-        public Color ToRGB()
+        public Color ToARGB()
         {
-            byte r, g, b;
+            byte a, r, g, b;
+            a = (byte)Math.Round(_alp * 255d);
             if (_sat == 0)
             {
                 r = (byte)Math.Round(_lum * 255d);
@@ -142,54 +170,58 @@ namespace CS.Util
                 g = (byte)Math.Round(tg * 255d);
                 b = (byte)Math.Round(tb * 255d);
             }
-            return Color.FromRgb(r, g, b);
-        }
-        public bool IsBoring()
-        {
-            //these are arbitrary, i just tweaked them for what i thought looked good.
-            if (Lightness < 25 || Lightness > 70 || Saturation < 35)
-            {
-                return true;
-            }
-            return false;
-        }
-        public void Excite()
-        {
-            //these are arbitrary, i just tweaked them for what i thought looked good.
-            Saturation = Math.Max(Saturation, 45);
-            Lightness = Math.Max(Lightness, 25);
-            Lightness = Math.Min(Lightness, 70);
+            return Color.FromArgb(a, r, g, b);
         }
 
-        public HSLColor Clone()
+        public HSLAColor Clone()
         {
-            return new HSLColor(_hue, _sat, _lum);
+            return new HSLAColor(_hue, _sat, _lum, _alp);
         }
         object ICloneable.Clone()
         {
-            return new HSLColor(_hue, _sat, _lum);
+            return Clone();
         }
         public override bool Equals(object obj)
         {
-            var cast = obj as HSLColor;
+            var cast = obj as HSLAColor;
             if (cast == null)
                 return false;
             return Equals(cast);
         }
-        public bool Equals(HSLColor other)
+        public bool Equals(HSLAColor other)
         {
+            if (other == null) return false;
             double tolerance = 2;
             return Math.Abs(other._hue - _hue) < tolerance
                 && Math.Abs(other._lum - _lum) < tolerance
-                && Math.Abs(other._sat - _sat) < tolerance;
+                && Math.Abs(other._sat - _sat) < tolerance
+                && Math.Abs(other._alp - _alp) < tolerance;
         }
         public override int GetHashCode()
         {
-            return this.GetAutoHashCode(_hue, _sat, _lum);
+            return this.GetAutoHashCode(_hue, _sat, _lum, _alp);
         }
         public override string ToString()
         {
-            return $"HSLColor:{{H:{Hue}, S:{Saturation}, L:{Lightness}}}";
+            return $"HSLColor:{{H:{Hue}, S:{Saturation}, L:{Lightness} A:{Alpha}}}";
+        }
+
+        public static implicit operator HSLAColor(System.Drawing.Color rgb)
+        {
+            return FromARGB(rgb);
+        }
+        public static implicit operator HSLAColor(Color rgb)
+        {
+            return FromARGB(rgb);
+        }
+        public static implicit operator Color(HSLAColor hsla)
+        {
+            return hsla.ToARGB();
+        }
+        public static implicit operator System.Drawing.Color(HSLAColor hsla)
+        {
+            var wcolor = hsla.ToARGB();
+            return System.Drawing.Color.FromArgb(wcolor.A, wcolor.R, wcolor.G, wcolor.B);
         }
     }
 }

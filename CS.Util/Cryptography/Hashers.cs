@@ -53,34 +53,4 @@ namespace CS.Util.Cryptography
     {
         private RIPEMD() { }
     }
-
-    /// <summary>
-    /// Provides a static PBKDF2 (SHA1) implementation using <see cref="Rfc2898DeriveBytes"/>.
-    /// </summary>
-    public sealed class PBKDF2 : DeriveBytesBase<Rfc2898DeriveBytes, PBKDF2.Rfc2898_SHA1_Generator>
-    {
-        private PBKDF2() { }
-        public sealed class Rfc2898_SHA1_Generator : DeriveBytesGenerator<Rfc2898DeriveBytes>
-        {
-            public override Rfc2898DeriveBytes CreateNew(byte[] password, byte[] salt, int iterations)
-            {
-                return new Rfc2898DeriveBytes(PBKDF2.Encoding.GetString(password), salt, iterations);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Provides a static PBKDF2 (SHA512) implementation using <see cref="Rfc2898DeriveBytes_SHA512"/>.
-    /// </summary>
-    public sealed class PBKDF2_SHA512 : DeriveBytesBase<Rfc2898DeriveBytes_SHA512, PBKDF2_SHA512.Rfc2898_SHA512_Generator>
-    {
-        private PBKDF2_SHA512() { }
-        public sealed class Rfc2898_SHA512_Generator : DeriveBytesGenerator<Rfc2898DeriveBytes_SHA512>
-        {
-            public override Rfc2898DeriveBytes_SHA512 CreateNew(byte[] password, byte[] salt, int iterations)
-            {
-                return new Rfc2898DeriveBytes_SHA512(password, salt, iterations);
-            }
-        }
-    }
 }

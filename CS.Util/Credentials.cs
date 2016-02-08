@@ -15,51 +15,51 @@ namespace CS.Util
     {
         public string Username { get; }
         public SecureString Password { get; }
+        public bool IsReadOnly => true;
 
+        [Obsolete("Using this constructor will leave a plain-text copy of the password in managed memory because strings are immutable. Consider using one of the alternatives.")]
         public unsafe Credentials(string username, string password)
         {
             Username = username;
             fixed (char* chPtr = password)
               Password = new SecureString(chPtr, password.Length);
+            Password.MakeReadOnly();
         }
         public unsafe Credentials(string username, char[] password)
         {
             Username = username;
             fixed (char* chPtr = password)
               Password = new SecureString(chPtr, password.Length);
+            Password.MakeReadOnly();
         }
         public Credentials(string username, SecureString password)
         {
             Username = username;
             Password = password;
+            Password.MakeReadOnly();
+        }
+        ~Credentials()
+        {
+            Dispose();
         }
 
         public Credentials Clone()
         {
             return new Credentials(Username, Password.Copy());
         }
-        public void Dispose()
+        object ICloneable.Clone()
         {
-            Password.Dispose();
+            return Clone();
         }
         public bool Equals(Credentials other)
         {
             if (other == null) return false;
             if (other.Username != Username) return false;
-            if (Password == null && (other.Password == null)) return true;
-            if (Password == null != (other.Password == null)) return false;
-            if (Password.Length != other.Password.Length) return false;
-            bool equal = false;
-            Password.UseSecurely(p1 => { other.Password.UseSecurely(p2 => { equal = p1 == p2; }); });
-            return equal;
-        }
-        public override string ToString()
-        {
-            return $"User:{Username}, Pass:" + new string('*', Password.Length);
-        }
-        public override int GetHashCode()
-        {
-            return this.GetAutoHashCode(MemberSelector.PublicProperties);
+
+            if (Password != null && other.Password != null)
+                return Password.UseSecurely(p1 => other.Password.UseSecurely(p2 => p1 == p2));
+
+            return ((Password == null) == (other.Password == null));
         }
         public override bool Equals(object obj)
         {
@@ -67,9 +67,18 @@ namespace CS.Util
             if (comp == null) return false;
             return Equals(comp);
         }
-        object ICloneable.Clone()
+        public override string ToString()
         {
-            return Clone();
+            return $"User:{Username}, Pass:" + new string('*', Password.Length);
+        }
+        public override int GetHashCode()
+        {
+            int pHash = Password.UseSecurely(pclr => pclr.GetHashCode());
+            return this.GetAutoHashCode(Username.GetHashCode(), pHash);
+        }
+        public void Dispose()
+        {
+            Password.Dispose();
         }
     }
 }
