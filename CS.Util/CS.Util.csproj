@@ -33,20 +33,14 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Newtonsoft.Json, Version=8.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\packages\Newtonsoft.Json.8.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
     <Reference Include="PresentationCore" />
-    <Reference Include="RT.Classify, Version=1.0.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\RT.Classify.1.0.2.0\lib\net40-Client\RT.Classify.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.Numerics" />
     <Reference Include="System.Runtime.Caching" />
     <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Security" />
     <Reference Include="System.Windows" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml.Linq" />
@@ -59,6 +53,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ByteBuffer.cs" />
+    <Compile Include="Collections\PinnedArray.cs" />
     <Compile Include="Credentials.cs" />
     <Compile Include="Cryptography\BCrypt.cs" />
     <Compile Include="Cryptography\CngHashBase.cs" />
@@ -67,11 +62,11 @@
     <Compile Include="Cryptography\PBKDF2.cs" />
     <Compile Include="EndianBitConverter.cs" />
     <Compile Include="EqualityComparers.cs" />
+    <Compile Include="Extensions\CollectionExtensions.cs" />
     <Compile Include="Extensions\EmitExtensions.cs" />
     <Compile Include="Dynamic\Instruction.cs" />
     <Compile Include="Dynamic\MethodBodyBuilder.cs" />
     <Compile Include="Dynamic\MethodBodyReader.cs" />
-    <Compile Include="Elevator.cs" />
     <Compile Include="Extensions\NumericExtensions.cs" />
     <Compile Include="Extensions\ObjectExtensions.cs" />
     <Compile Include="Extensions\ReflectionExtensions.cs" />
@@ -91,13 +86,24 @@
     <Compile Include="Collections\ListKvp.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RandomEx.cs" />
+    <Compile Include="Collections\UnmanagedArray.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CS.Util.nuspec" />
-    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="FodyWeavers.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <COMReference Include="CERTENROLLLib">
+      <Guid>{728AB348-217D-11DA-B2A4-000E7BBB2B09}</Guid>
+      <VersionMajor>1</VersionMajor>
+      <VersionMinor>0</VersionMinor>
+      <Lcid>0</Lcid>
+      <WrapperTool>tlbimp</WrapperTool>
+      <Isolated>False</Isolated>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </COMReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

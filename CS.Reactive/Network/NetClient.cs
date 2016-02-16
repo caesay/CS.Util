@@ -11,38 +11,29 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using CS.Reactive.Network;
 
-namespace CS.Reactive
+namespace CS.Reactive.Network
 {
-    public class NetClient : IDisposable
+    public class NetClient<TMsg> : MessageTransferClient<TMsg>
     {
-        public bool Connected => _client?.Connected == true;
-        public EndPoint RemoteEndpoint => _client?.Client.RemoteEndPoint;
-        public IObservable<PacketRecievedEventArgs> PacketRecieved => _observable.AsObservable();
+        public override IObservable<MessageRecievedEventArgs<TMsg>> MessageRecieved => _protocol.MessageRecieved;
 
         private readonly string _hostname;
         private readonly int _port;
         private readonly bool _ssl;
-        private Stream _stream;
-        private TcpClient _client;
-        private Subject<PacketRecievedEventArgs> _observable;
+        private ITransferProtocol<TMsg> _protocol;
 
-        public NetClient(string hostname, int port)
-            : this(hostname, port, false)
+        public NetClient(string hostname, int port, ITransferProtocol<TMsg> protocol)
+            : this(hostname, port, false, protocol)
         {
         }
-        public NetClient(string hostname, int port, bool ssl)
+        public NetClient(string hostname, int port, bool ssl, ITransferProtocol<TMsg> protocol)
         {
             _ssl = ssl;
             _hostname = hostname;
             _port = port;
-            _observable = new Subject<PacketRecievedEventArgs>();
-        }
-        internal NetClient(TcpClient client, Stream stream)
-        {
-            _client = client;
-            _stream = stream;
-            _observable = new Subject<PacketRecievedEventArgs>();
+            _protocol = protocol;
         }
 
         public void Connect()
@@ -65,7 +56,7 @@ namespace CS.Reactive
             {
                 _stream = _client.GetStream();
             }
-            BeginRead();
+            StartReading();
         }
         public async Task ConnectAsync()
         {
@@ -87,159 +78,78 @@ namespace CS.Reactive
             {
                 _stream = _client.GetStream();
             }
-            BeginRead();
+            StartReading();
         }
-        public void Close()
+
+        internal override void StartReading()
         {
-            _client?.Close();
-            _stream?.Dispose();
-            _client = null;
-            _stream = null;
+            _protocol.BeginReadingAsync(_stream);
         }
-        public void Dispose()
+        public override void Write(TMsg packet)
         {
-            Close();
+            _protocol.Write(packet);
         }
-
-        public void Write(byte[] packet)
+        public override Task WriteAsync(TMsg packet)
         {
-            if (!Connected)
-                throw new IOException("Can not write to a closed connection");
-            byte[] lengthPrefix = BitConverter.GetBytes(packet.Length);
-            _stream.Write(lengthPrefix, 0, lengthPrefix.Length);
-            _stream.Write(packet, 0, packet.Length);
-            _stream.Flush();
-        }
-        public Task WriteAsync(byte[] packet)
-        {
-            return WriteAsync(packet, CancellationToken.None);
-        }
-        public async Task WriteAsync(byte[] packet, CancellationToken token)
-        {
-            if (!Connected)
-                throw new IOException("Can not write to a closed connection");
-            byte[] lengthPrefix = BitConverter.GetBytes(packet.Length);
-            await _stream.WriteAsync(lengthPrefix, 0, lengthPrefix.Length, token);
-            await _stream.WriteAsync(packet, 0, packet.Length, token);
-            await _stream.FlushAsync(token);
+            return _protocol.WriteAsync(packet);
         }
 
-        private byte[] _lengthBuffer;
-        private byte[] _dataBuffer;
-        private int _bytesReceived;
-        private bool _reading;
-
-        internal void StartReading()
-        {
-            if (_reading) return;
-            _reading = true;
-            BeginRead();
-        }
-
-        private void BeginRead()
-        {
-            var callback = new AsyncCallback(EndRead);
-            if (_dataBuffer != null)
-            {
-                _stream.BeginRead(this._dataBuffer, this._bytesReceived, this._dataBuffer.Length - this._bytesReceived, callback, null);
-            }
-            else
-            {
-                if (_lengthBuffer == null)
-                    _lengthBuffer = new byte[sizeof(int)];
-
-                _stream.BeginRead(this._lengthBuffer, this._bytesReceived, this._lengthBuffer.Length - this._bytesReceived, callback, null);
-            }
-        }
-        private void EndRead(IAsyncResult result)
-        {
-            int bytesRead = -1;
-            try
-            {
-                if (_stream == null || !_stream.CanRead)
-                {
-                    _observable.OnCompleted();
-                    return;
-                }
-                bytesRead = _stream.EndRead(result);
-            }
-            catch (Exception ex)
-            {
-                _observable.OnError(ex);
-            }
-
-            // Get the number of bytes read into the buffer
-            this._bytesReceived += bytesRead;
-
-            // If we get a zero-length read, then that indicates the remote side graciously closed the connection
-            if (bytesRead == 0)
-            {
-                _observable.OnCompleted();
-                return;
-            }
-
-            if (this._dataBuffer == null)
-            {
-                // (We're currently receiving the length buffer)
-                if (this._bytesReceived != sizeof(int))
-                {
-                    // We haven't gotten all the length buffer yet
-                    BeginRead();
-                }
-                else
-                {
-                    // We've gotten the length buffer
-                    int length = BitConverter.ToInt32(this._lengthBuffer, 0);
-
-                    // Sanity check for length < 0
-                    // This check will catch 50% of transmission errors that make it past both the IP and Ethernet checksums
-                    if (length < 0)
-                    {
-                        _observable.OnError(new InvalidDataException("Packet length less than zero (corrupted message)"));
-                        return;
-                    }
-
-                    // Zero-length packets are allowed as keepalives
-                    if (length == 0)
-                    {
-                        this._bytesReceived = 0;
-                        BeginRead();
-                    }
-                    else
-                    {
-                        // Create the data buffer and start reading into it
-                        this._dataBuffer = new byte[length];
-                        this._bytesReceived = 0;
-                        BeginRead();
-                    }
-                }
-            }
-            else
-            {
-                if (this._bytesReceived != this._dataBuffer.Length)
-                {
-                    // We haven't gotten all the data buffer yet
-                    BeginRead();
-                }
-                else
-                {
-                    // We've gotten an entire packet
-                    _observable.OnNext(new PacketRecievedEventArgs(_dataBuffer));
-
-                    // Start reading the length buffer again
-                    this._dataBuffer = null;
-                    this._bytesReceived = 0;
-                    BeginRead();
-                }
-            }
-        }
         private bool ServerCertValidator(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
             if (sslPolicyErrors == SslPolicyErrors.None)
                 return true;
             var ex = new ArgumentException($"Certificate error: {sslPolicyErrors}");
-            _observable.OnError(ex);
             throw ex;
+        }
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+            _protocol.Dispose();
+        }
+    }
+
+    public class NetClient : NetClient<byte[]>
+    {
+        public NetClient(string hostname, int port) 
+            : base(hostname, port, new ByteArrayTransferProtocol())
+        {
+        }
+
+        public NetClient(string hostname, int port, bool ssl) 
+            : base(hostname, port, ssl, new ByteArrayTransferProtocol())
+        {
+        }
+    }
+
+    internal class InboundNetClient<TMsg> : MessageTransferClient<TMsg>
+    {
+        public override IObservable<MessageRecievedEventArgs<TMsg>> MessageRecieved => _protocol.MessageRecieved;
+        private ITransferProtocol<TMsg> _protocol;
+
+        internal InboundNetClient(TcpClient client, Stream stream, ITransferProtocol<TMsg> protocol)
+        {
+            _client = client;
+            _stream = stream;
+            _protocol = protocol;
+        }
+
+        internal override void StartReading()
+        {
+            _protocol.BeginReadingAsync(_stream);
+        }
+
+        public override void Write(TMsg packet)
+        {
+            _protocol.Write(packet);
+        }
+        public override Task WriteAsync(TMsg packet)
+        {
+            return _protocol.WriteAsync(packet);
+        }
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+            _protocol?.Dispose();
         }
     }
 }

@@ -2,17 +2,15 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-[assembly: InternalsVisibleTo("CS.Runtime")]
-
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("CS.Util")]
+[assembly: AssemblyTitle("CS.Runtime")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("CS.Util")]
-[assembly: AssemblyCopyright("Copyright © Caelan Sayler 2016")]
+[assembly: AssemblyProduct("CS.Runtime")]
+[assembly: AssemblyCopyright("Copyright ©  2016")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -22,7 +20,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("6b23f9bc-2832-433b-88ca-8649fcdb0070")]
+[assembly: Guid("7e12f0a3-9c57-465f-a0a5-d35b59a7704b")]
 
 // Version information for an assembly consists of the following four values:
 //

@@ -1,0 +1,15 @@
+﻿<?xml version="1.0"?>
+<package>
+  <metadata>
+    <id>CS.Wpf</id>
+    <version>$version$</version>
+    <title>CS.Wpf</title>
+    <authors>caesay</authors>
+    <owners>caesay</owners>
+    <projectUrl>https://github.com/caesay/CS.Util</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Utility library. Contains lots of helper methods, IL generation and crypography extensions.</description>
+    <copyright>Copyright 2015 Caelan Sayler</copyright>
+    <tags>C# WPF</tags>
+  </metadata>
+</package>

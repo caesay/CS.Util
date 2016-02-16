@@ -8,10 +8,10 @@ namespace CS.Util.Extensions
 {
     public static class NumericExtensions
     {
-        /// <summary>
-        /// Converts the integer to a textual representation using English words. 
-        /// For example, 142.AsPrettyString() is "one hundred and forty-two".
-        /// </summary>
+        public static string AsPrettyString(this bool value)
+        {
+            return (value) ? "True" : "False";
+        }
         public static string AsPrettyString(this ushort number)
         {
             return ((long)number).AsPrettyString();
@@ -109,10 +109,9 @@ namespace CS.Util.Extensions
             return PrettyTime.Format(time);
         }
 
-        public static byte[] GetBytes(this bool value, bool inLittleEndian = true)
+        public static byte[] GetBytes(this bool value)
         {
-            var converter = inLittleEndian ? EndianBitConverter.Little : EndianBitConverter.Big;
-            return converter.GetBytes(value);
+            return BitConverter.GetBytes(value);
         }
         public static byte[] GetBytes(this char value, bool inLittleEndian = true)
         {
@@ -175,6 +174,53 @@ namespace CS.Util.Extensions
             double difference = d1 - d2;
 
             return (-tolerance < difference && tolerance > difference);
+        }
+
+        private const string _base36Characters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        public static string ToRadix(this ushort number, int toRadix)
+        {
+            return ((long)number).ToRadix(toRadix);
+        }
+        public static string ToRadix(this short number, int toRadix)
+        {
+            return ((long)number).ToRadix(toRadix);
+        }
+        public static string ToRadix(this uint number, int toRadix)
+        {
+            return ((long)number).ToRadix(toRadix);
+        }
+        public static string ToRadix(this int number, int toRadix)
+        {
+            return ((long)number).ToRadix(toRadix);
+        }
+        public static string ToRadix(this long number, int toRadix)
+        {
+            if (toRadix < 2 || toRadix > 36)
+                throw new ArgumentException("The radix must be >= 2 and <= 36");
+            StringBuilder result = new StringBuilder();
+            number = Math.Abs(number);
+            while (number > 0)
+            {
+                result.Insert(0, _base36Characters[(int)(number % toRadix)]);
+                number /= toRadix;
+            }
+            return result.ToString().ToLower();
+        }
+        public static long FromRadix(this string number, int fromRadix)
+        {
+            if (fromRadix < 2 || fromRadix > 36)
+                throw new ArgumentException("The radix must be >= 2 and <= 36");
+            number = number.ToUpper();
+            long result = 0, multiplier = 1;
+            foreach (var ch in number.ToCharArray().Reverse())
+            {
+                int position = _base36Characters.IndexOf(ch);
+                if (position == -1 || position > fromRadix)
+                    throw new ArgumentException("Invalid character in number input string");
+                result += position * multiplier;
+                multiplier *= fromRadix;
+            }
+            return result;
         }
     }
 }

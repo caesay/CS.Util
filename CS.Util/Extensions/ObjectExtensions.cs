@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -153,9 +154,7 @@ namespace CS.Util.Extensions
                 }, null);
             return result;
         }
-
     }
-
 
     [Flags]
     public enum MemberSelector : short

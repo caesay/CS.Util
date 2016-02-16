@@ -48,21 +48,27 @@ namespace CS.Util.Cryptography
         public static string Compute(SecureString password, byte[] salt)
         {
             var bstr = Marshal.SecureStringToBSTR(password);
-            var length = Marshal.ReadInt32(bstr, -4);
-            var bytes = new byte[length];
-
-            var bytesPin = GCHandle.Alloc(bytes, GCHandleType.Pinned);
             try
             {
-                Marshal.Copy(bstr, bytes, 0, length);
-                return Compute(bytes, salt);
+                var length = Marshal.ReadInt32(bstr, -4);
+                var bytes = new byte[length];
+
+                var bytesPin = GCHandle.Alloc(bytes, GCHandleType.Pinned);
+                try
+                {
+                    Marshal.Copy(bstr, bytes, 0, length);
+                    return Compute(bytes, salt);
+                }
+                finally
+                {
+                    for (var i = 0; i < bytes.Length; i++)
+                        bytes[i] = 0;
+                    bytesPin.Free();
+                }
             }
             finally
             {
                 Marshal.ZeroFreeBSTR(bstr);
-                for (var i = 0; i < bytes.Length; i++)
-                    bytes[i] = 0;
-                bytesPin.Free();
             }
         }
 
