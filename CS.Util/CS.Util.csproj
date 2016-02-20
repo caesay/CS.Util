@@ -80,6 +80,7 @@
     <Compile Include="Input\MouseHook.cs" />
     <Compile Include="Fraction.cs" />
     <Compile Include="PrettyTime.cs" />
+    <Compile Include="PropertyChanged.Fody.cs" />
     <Compile Include="SynchronizationContextChange.cs" />
     <Compile Include="Dynamic\DynamicTypeFactory.cs" />
     <Compile Include="Collections\GenericMemoryCache.cs" />

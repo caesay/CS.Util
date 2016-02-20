@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace CS.Reactive.Network
 {
-    public abstract class MessageTransferClient<TMsg> : IDisposable
+    public abstract class MessageTransferClient<TMsg> : IDisposable, IMessageTransferClient<TMsg>
     {
         public bool Connected => _client?.Connected == true;
         public EndPoint RemoteEndpoint => _client?.Client.RemoteEndPoint;

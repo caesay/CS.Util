@@ -7,6 +7,7 @@ using System.Runtime.Caching;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
+using CS.Util.Extensions;
 
 namespace CS.Util.Collections
 {
@@ -129,6 +130,10 @@ namespace CS.Util.Collections
             _lock.EnterWriteLock();
             try
             {
+                // iterate to trigger remove callbacks
+                foreach (var item in _internal.ToArray())
+                    _internal.Remove(item.Key);
+
                 _internal.Dispose();
                 _internal = new MemoryCache(typeof(TValue).Name + "_" + Guid.NewGuid());
             }
@@ -171,7 +176,7 @@ namespace CS.Util.Collections
 
     /// <summary>
     /// A wrapper around the .Net MemoryCache that provides type safety for the value, and also supports 
-    /// a non-string key type. This implementation stores an additional WeakReference for each cache object
+    /// a non-string reference-type key. This implementation stores an additional WeakReference for each cache object
     /// so its slower and has a higher overhead than the standard <see cref="GenericMemoryCache{T}" />
     /// or <see cref="MemoryCache"/>
     /// </summary>
@@ -179,7 +184,6 @@ namespace CS.Util.Collections
     /// <typeparam name="TValue">The type of the value to be stored</typeparam>
     public class GenericMemoryCache<TKey, TValue> : IGenericCache<TKey, TValue>
         where TKey : class
-        where TValue : class
     {
         public long Count
         {
@@ -209,13 +213,44 @@ namespace CS.Util.Collections
             string token;
             bool exists = _weakTable.TryGetValue(key, out token);
 
-            return exists
-                ? _internal.Get(token)?.Value
-                : null;
+            if (!exists)
+                return default(TValue);
+
+            var val = _internal.Get(token);
+            if (val == null)
+                return default(TValue);
+
+            return val.Value;
         }
         IDictionary<TKey, TValue> IGenericCache<TKey, TValue>.GetRange(IEnumerable<TKey> keys)
         {
-            throw new NotImplementedException();
+            var transformedKeys = keys.Select(k =>
+            {
+                string token;
+                if (_weakTable.TryGetValue(k, out token))
+                    return new { Key = k, Token = token };
+                return new { Key = k, Token = (string)null };
+            }).ToArray();
+
+            IDictionary<TKey, TValue> ret = new Dictionary<TKey, TValue>(transformedKeys.Length);
+            foreach (var item in transformedKeys)
+            {
+                if (item.Token == null)
+                {
+                    ret[item.Key] = default(TValue);
+                    continue;
+                }
+
+                var cacheItem = _internal.Get(item.Token);
+                if (cacheItem == null)
+                {
+                    _weakTable.Remove(item.Key);
+                    ret[item.Key] = default(TValue);
+                    continue;
+                }
+                ret[item.Key] = cacheItem.Value;
+            }
+            return ret;
         }
 
         public void Add(GenericCacheItem<TKey, TValue> item, CacheItemPolicy policy)
@@ -260,9 +295,14 @@ namespace CS.Util.Collections
             if (exists)
             {
                 _weakTable.Remove(key);
-                return _internal.Delete(token)?.Value;
+
+                var val = _internal.Delete(token);
+                if (val == null)
+                    return default(TValue);
+
+                return val.Value;
             }
-            return null;
+            return default(TValue);
         }
         public void Clear()
         {

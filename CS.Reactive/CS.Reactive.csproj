@@ -54,6 +54,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Network\ByteArrayTransferProtocol.cs" />
+    <Compile Include="Network\IMessageTransferClient.cs" />
     <Compile Include="Network\ITransferProtocol.cs" />
     <Compile Include="Network\MessageTransferClient.cs" />
     <Compile Include="Network\NetClient.cs" />
