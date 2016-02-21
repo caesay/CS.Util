@@ -23,6 +23,7 @@ namespace CS.Reactive.Network
         {
 
         }
+
         ~MessageTransferClient()
         {
             Dispose(false);
