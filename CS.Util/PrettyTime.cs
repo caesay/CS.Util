@@ -11,10 +11,11 @@ namespace CS.Util
         private static TimeUnit[] _unitMap = new TimeUnit[]
         {
             new TimeUnit(1 ,"", "", 1000*60*5, "%u", "moments ago", "right now"),
-            new TimeUnit(1 ,"second", "seconds"),
+            new TimeUnit(1 ,"millisecond", "milliseconds"),
             new TimeUnit(1000 ,"second", "seconds"),
             new TimeUnit(1000*60 ,"minute", "minutes"),
             new TimeUnit(1000*60*60 ,"hour", "hours"),
+            new TimeUnit(1000*60*60*24 ,"", "", 2, "%u","yesterday", "tomorrow"),
             new TimeUnit(1000*60*60*24 ,"day", "days"),
             new TimeUnit(1000*60*60*24*7 ,"week", "weeks"),
             new TimeUnit(2629743830L ,"month", "months"),
@@ -65,7 +66,7 @@ namespace CS.Util
                     else
                     {
                         //result.Quantity = (long)Math.Ceiling((double)difference / millisPerUnit);
-                        var d = Math.Round(difference/(double) millisPerUnit);
+                        var d = Math.Round(difference / (double)millisPerUnit);
                         result.Quantity = (long)(d);
                     }
 
@@ -166,6 +167,11 @@ namespace CS.Util
                 string result = Pattern.Replace(QUANTITY, quantity.ToString());
                 result = result.Replace(UNIT, unit);
                 return result;
+            }
+
+            public override string ToString()
+            {
+                return "Time Unit (" + Name + ")";
             }
         }
     }

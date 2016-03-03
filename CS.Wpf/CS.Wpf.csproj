@@ -55,21 +55,21 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Brushes\BilinearGradientBrush.cs" />
-    <Compile Include="Brushes\CheckerboardBrush.cs" />
+    <Compile Include="Brushes\CheckeredBrush.cs" />
     <Compile Include="Controls\PhotoLoader\ImageLoaders\ExternalLoader.cs" />
     <Compile Include="Controls\PhotoLoader\ImageLoaders\ILoader.cs" />
     <Compile Include="Controls\PhotoLoader\ImageLoaders\LoaderFactory.cs" />
     <Compile Include="Controls\PhotoLoader\ImageLoaders\LocalDiskLoader.cs" />
     <Compile Include="Controls\PhotoLoader\Loader.cs" />
     <Compile Include="Controls\PhotoLoader\Manager.cs" />
-    <Page Include="Controls\ProgressRing.xaml">
+    <Page Include="Controls\ProgressRing\Generic.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
-    <Compile Include="Controls\ProgressRing.cs" />
-    <Compile Include="Controls\TransitioningContentControl.cs" />
+    <Compile Include="Controls\ProgressRing\ProgressRing.cs" />
+    <Compile Include="Controls\TransitioningContentControl\TransitioningContentControl.cs" />
     <Compile Include="Controls\PhotoLoader\Types.cs" />
-    <Page Include="Controls\TransitioningContentControl.xaml">
+    <Page Include="Controls\TransitioningContentControl\Generic.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -90,7 +90,12 @@
     <Compile Include="Properties\Annotations.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RelayCommand.cs" />
+    <Page Include="Themes\Generic.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Compile Include="TrulyObservableCollection.cs" />
+    <Compile Include="UpdatableMarkupExtension.cs" />
     <Compile Include="VisualTreeHelperEx.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -99,7 +104,7 @@
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>
-    <Page Include="Controls\PhotoLoader\Resources.xaml">
+    <Page Include="Controls\PhotoLoader\Generic.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

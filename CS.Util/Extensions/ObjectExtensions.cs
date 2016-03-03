@@ -22,26 +22,21 @@ namespace CS.Util.Extensions
         public static int GetAutoHashCode(this object obj, MemberSelector selector = MemberSelector.PublicProperties)
         {
             var type = obj.GetType();
-            List<int> hashCodes = new List<int>();
+            List<object> hashCodes = new List<object>();
             if (selector.HasFlag(MemberSelector.PublicProperties))
-                hashCodes.AddRange(type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Select(p => p.GetValue(obj).GetHashCode()));
+                hashCodes.AddRange(type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Select(p => p.GetValue(obj)));
             if (selector.HasFlag(MemberSelector.PrivateProperties))
-                hashCodes.AddRange(type.GetProperties(BindingFlags.NonPublic | BindingFlags.Instance).Select(p => p.GetValue(obj).GetHashCode()));
+                hashCodes.AddRange(type.GetProperties(BindingFlags.NonPublic | BindingFlags.Instance).Select(p => p.GetValue(obj)));
             if (selector.HasFlag(MemberSelector.PublicFields))
-                hashCodes.AddRange(type.GetFields(BindingFlags.Public | BindingFlags.Instance).Select(p => p.GetValue(obj).GetHashCode()));
+                hashCodes.AddRange(type.GetFields(BindingFlags.Public | BindingFlags.Instance).Select(p => p.GetValue(obj)));
             if (selector.HasFlag(MemberSelector.PrivateFields))
-                hashCodes.AddRange(type.GetFields(BindingFlags.Public | BindingFlags.Instance).Select(p => p.GetValue(obj).GetHashCode()));
-
-            if (hashCodes.Count == 0)
-                return obj.GetHashCode();
-            if (hashCodes.Count == 1)
-                return hashCodes[0];
+                hashCodes.AddRange(type.GetFields(BindingFlags.Public | BindingFlags.Instance).Select(p => p.GetValue(obj)));
 
             return GetAutoHashCode(null, hashCodes.ToArray());
         }
         public static int GetAutoHashCode(this object obj, params object[] members)
         {
-            return GetAutoHashCode(obj, members.Select(o => o.GetHashCode()).ToArray());
+            return GetAutoHashCode(obj, members.Where(m => m != null).Select(o => o.GetHashCode()).ToArray());
         }
         public static int GetAutoHashCode(this object obj, params int[] members)
         {
@@ -65,94 +60,6 @@ namespace CS.Util.Extensions
         public static bool IsDefault<T>(this T val)
         {
             return val.Equals(default(T));
-        }
-
-        /// <summary>
-        /// Provides a method to use a SecureString in such a way that guarentees the string memory won't be leaked or
-        /// remain in managed memory after the action is completed.
-        /// </summary>
-        /// <param name="secureString">The secure string to load</param>
-        /// <param name="action">The action to invoke with the plain-text string</param>
-        public static void UseSecurely(this SecureString secureString, Action<string> action)
-        {
-            secureString.UseSecurely<object>((p) =>
-            {
-                action(p);
-                return null;
-            });
-        }
-        /// <summary>
-        /// Provides a method to use a SecureString in such a way that guarentees the string memory won't be leaked or
-        /// remain in managed memory after the action is completed.
-        /// </summary>
-        /// <param name="secureString">The secure string to load</param>
-        /// <param name="action">The function to invoke with the plain-text string</param>
-        public static unsafe T UseSecurely<T>(this SecureString secureString, Func<string, T> action)
-        {
-            T result = default(T);
-            int length = secureString.Length;
-            var insecurePassword = new string('\0', length);
-
-            var gch = new GCHandle();
-            RuntimeHelpers.ExecuteCodeWithGuaranteedCleanup(
-                delegate
-                {
-                    RuntimeHelpers.PrepareConstrainedRegions();
-                    try
-                    {
-                    }
-                    finally
-                    {
-                        gch = GCHandle.Alloc(insecurePassword, GCHandleType.Pinned);
-                    }
-
-                    // copy the secure password bits over to the pinned insecurePassword
-                    IntPtr passwordPtr = IntPtr.Zero;
-                    RuntimeHelpers.ExecuteCodeWithGuaranteedCleanup(
-                        delegate
-                        {
-                            RuntimeHelpers.PrepareConstrainedRegions();
-                            try
-                            {
-                            }
-                            finally
-                            {
-                                passwordPtr = Marshal.SecureStringToBSTR(secureString);
-                            }
-
-                            var pPassword = (char*)passwordPtr;
-                            var pInsecurePassword = (char*)gch.AddrOfPinnedObject();
-                            for (int index = 0; index < length; index++)
-                            {
-                                pInsecurePassword[index] = pPassword[index];
-                            }
-                        },
-                        delegate
-                        {
-                            if (passwordPtr != IntPtr.Zero)
-                            {
-                                // zero the unmanaged string
-                                Marshal.ZeroFreeBSTR(passwordPtr);
-                            }
-                        }, null);
-
-                    // execute specified action
-                    result = action(insecurePassword);
-                },
-                delegate
-                {
-                    if (gch.IsAllocated)
-                    {
-                        // zero the managed string
-                        var pInsecurePassword = (char*)gch.AddrOfPinnedObject();
-                        for (int index = 0; index < length; index++)
-                        {
-                            pInsecurePassword[index] = '\0';
-                        }
-                        gch.Free();
-                    }
-                }, null);
-            return result;
         }
     }
 

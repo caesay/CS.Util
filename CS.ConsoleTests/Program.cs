@@ -19,7 +19,15 @@ namespace CS.ConsoleTests
     {
         static void Main(string[] args)
         {
+            var st2 = PrettyTime.Format(DateTime.Now.AddDays(1).AddHours(1));
+            var st32 = PrettyTime.Format(DateTime.Now.AddHours(23));
+            var st22 = PrettyTime.Format(DateTime.Now.AddDays(2));
+            var st356 = PrettyTime.Format(DateTime.Now.AddHours(33));
 
+            var st3 = PrettyTime.Format(DateTime.Now.AddHours(-23));
+            var st = PrettyTime.Format(DateTime.Now.AddDays(-1));
+            var st4 = PrettyTime.Format(DateTime.Now.AddDays(-2));
+            var st35 = PrettyTime.Format(DateTime.Now.AddHours(-33));
             Console.WriteLine();
         }
 
