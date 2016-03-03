@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
 using System.Security;
 using System.Text;
 using System.Threading.Tasks;
@@ -54,6 +55,52 @@ namespace CS.Util.Extensions
                 }
             }
             return hash;
+        }
+
+        public static T GetAutoDeepClone<T>(this T obj)
+        {
+            return (T) DeepCopyInternal(obj);
+        }
+        private static object DeepCopyInternal(object obj)
+        {
+            if (obj == null)
+                return null;
+            Type type = obj.GetType();
+            if (type.IsValueType || type == typeof(string))
+            {
+                return obj;
+            }
+            if (type.IsArray)
+            {
+                Type elementType = Type.GetType(
+                     type.FullName.Replace("[]", string.Empty));
+                var array = obj as Array;
+                Array copied = Array.CreateInstance(elementType, array.Length);
+                for (int i = 0; i < array.Length; i++)
+                {
+                    copied.SetValue(DeepCopyInternal(array.GetValue(i)), i);
+                }
+                return Convert.ChangeType(copied, obj.GetType());
+            }
+            if (type.IsClass)
+            {
+                var constructor = type.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null, Type.EmptyTypes, null);
+                object copied = constructor == null 
+                    ? FormatterServices.GetUninitializedObject(type) 
+                    : constructor.Invoke(new object[0]);
+
+                FieldInfo[] fields = type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                foreach (FieldInfo field in fields)
+                {
+                    object fieldValue = field.GetValue(obj);
+                    if (fieldValue == null)
+                        continue;
+                    field.SetValue(copied, DeepCopyInternal(fieldValue));
+                }
+                return copied;
+            }
+            throw new ArgumentException("Unknown type");
         }
 
         /// <summary> Returns true if this value is equal to the default value for this type.</summary>

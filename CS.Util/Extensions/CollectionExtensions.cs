@@ -8,6 +8,5 @@ namespace CS.Util.Extensions
 {
     public static class CollectionExtensions
     {
-        
     }
 }
