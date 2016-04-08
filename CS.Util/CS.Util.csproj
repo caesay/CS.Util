@@ -67,6 +67,7 @@
     <Compile Include="Cryptography\DeriveBytesBase.cs" />
     <Compile Include="Cryptography\HashHelper.cs" />
     <Compile Include="Cryptography\PBKDF2.cs" />
+    <Compile Include="DisposableTimer.cs" />
     <Compile Include="EndianBitConverter.cs" />
     <Compile Include="EqualityComparers.cs" />
     <Compile Include="Extensions\CollectionExtensions.cs" />
@@ -81,6 +82,7 @@
     <Compile Include="Cryptography\Hashers.cs" />
     <Compile Include="Extensions\StreamExtensions.cs" />
     <Compile Include="Extensions\StringExtensions.cs" />
+    <Compile Include="SynchronizationContextProxy.cs" />
     <Compile Include="HSLAColor.cs" />
     <Compile Include="Input\GlobalHook.cs" />
     <Compile Include="Input\HotKey.cs" />
@@ -96,6 +98,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RandomEx.cs" />
     <Compile Include="Collections\UnmanagedArray.cs" />
+    <Compile Include="SynchronizationContextRegister.cs" />
     <Compile Include="WindowsThumbnailProvider.cs" />
   </ItemGroup>
   <ItemGroup>
