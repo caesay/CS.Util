@@ -11,26 +11,19 @@ namespace CS.Wpf
 {
     public abstract class UpdatableMarkupExtension : MarkupExtension
     {
-        private object _targetObject;
-        private object _targetProperty;
+        protected object TargetObject => _targetObject.Target;
+        protected object TargetProperty => _targetProperty.Target;
 
-        protected object TargetObject
-        {
-            get { return _targetObject; }
-        }
-
-        protected object TargetProperty
-        {
-            get { return _targetProperty; }
-        }
+        private WeakReference _targetObject;
+        private WeakReference _targetProperty;
 
         public sealed override object ProvideValue(IServiceProvider serviceProvider)
         {
             IProvideValueTarget target = serviceProvider.GetService(typeof(IProvideValueTarget)) as IProvideValueTarget;
             if (target != null)
             {
-                _targetObject = target.TargetObject;
-                _targetProperty = target.TargetProperty;
+                _targetObject = new WeakReference(target.TargetObject);
+                _targetProperty = new WeakReference(target.TargetProperty);
             }
 
             return ProvideInitialValue(serviceProvider);
@@ -38,28 +31,28 @@ namespace CS.Wpf
 
         protected void UpdateValue(object value)
         {
-            if (_targetObject != null)
+            if (_targetObject == null || !_targetObject.IsAlive || _targetProperty == null || !_targetProperty.IsAlive)
+                return;
+
+            DependencyObject obj = _targetObject.Target as DependencyObject;
+            object tProp = _targetProperty.Target;
+
+            if (tProp is DependencyProperty)
             {
-                if (_targetProperty is DependencyProperty)
-                {
-                    DependencyObject obj = _targetObject as DependencyObject;
-                    DependencyProperty prop = _targetProperty as DependencyProperty;
+                DependencyProperty prop = tProp as DependencyProperty;
+                Action updateAction = () => obj.SetValue(prop, value);
 
-                    Action updateAction = () => obj.SetValue(prop, value);
-
-                    // Check whether the target object can be accessed from the
-                    // current thread, and use Dispatcher.Invoke if it can't
-
-                    if (obj.CheckAccess())
-                        updateAction();
-                    else
-                        obj.Dispatcher.Invoke(updateAction);
-                }
-                else // _targetProperty is PropertyInfo
-                {
-                    PropertyInfo prop = _targetProperty as PropertyInfo;
-                    prop.SetValue(_targetObject, value, null);
-                }
+                // Check whether the target object can be accessed from the
+                // current thread, and use Dispatcher.Invoke if it can't
+                if (obj.CheckAccess())
+                    updateAction();
+                else
+                    obj.Dispatcher.Invoke(updateAction);
+            }
+            else if (tProp is PropertyInfo)
+            {
+                PropertyInfo prop = tProp as PropertyInfo;
+                prop.SetValue(_targetObject, value, null);
             }
         }
 
