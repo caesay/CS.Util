@@ -15,22 +15,26 @@ namespace CS.Util
     {
         public static IDisposable Start(TimeSpan interval, Action action)
         {
-            var proxy = new SynchronizationContextProxy();
+            return Start(interval, action, true);
+        }
+        public static IDisposable Start(TimeSpan interval, Action action, bool synchronized)
+        {
             var timer = new Timer();
-            timer.SynchronizingObject = proxy;
+            if (synchronized)
+                timer.SynchronizingObject = new SynchronizationContextProxy();
             timer.AutoReset = true;
             timer.Interval = interval.TotalMilliseconds;
             timer.Elapsed += (sender, args) => action();
             timer.Start();
 
-            return new timerDispoer(timer);
+            return new timerDisposer(timer);
         }
 
-        private class timerDispoer : IDisposable
+        private class timerDisposer : IDisposable
         {
             private Timer _timer;
 
-            public timerDispoer(Timer timer)
+            public timerDisposer(Timer timer)
             {
                 _timer = timer;
             }
