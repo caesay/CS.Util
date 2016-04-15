@@ -27,6 +27,8 @@ namespace CS.Util
             }
             set
             {
+                if (value < 0 || value > 360)
+                    throw new ArgumentOutOfRangeException("value", "Hue must be >= 0 and <= to 360");
                 _hue = value / 60d;
             }
         }
@@ -37,7 +39,12 @@ namespace CS.Util
         public double Saturation
         {
             get { return _sat * 100; }
-            set { _sat = value / 100; }
+            set
+            {
+                if (value < 0 || value > 100)
+                    throw new ArgumentOutOfRangeException("value", "Saturation must be >= 0 and <= to 100");
+                _sat = value / 100;
+            }
         }
         /// <summary>
         /// This is a value from 0 to 100 inclusive that represents the light or darkness of the current Hue. 
@@ -46,7 +53,12 @@ namespace CS.Util
         public double Lightness
         {
             get { return _lum * 100; }
-            set { _lum = value / 100; }
+            set
+            {
+                if (value < 0 || value > 100)
+                    throw new ArgumentOutOfRangeException("value", "Lightness must be >= 0 and <= to 100");
+                _lum = value / 100;
+            }
         }
         /// <summary>
         /// This is a value from 0 to 100 inclusive that represents the transparency of the current color.
@@ -55,7 +67,12 @@ namespace CS.Util
         public double Alpha
         {
             get { return _alp * 100; }
-            set { _alp = value / 100; }
+            set
+            {
+                if(value < 0 || value > 100)
+                    throw new ArgumentOutOfRangeException("value", "Alpha must be >= 0 and <= to 100");
+                _alp = value / 100;
+            }
         }
 
         private double _hue;
