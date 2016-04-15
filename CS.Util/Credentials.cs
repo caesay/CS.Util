@@ -11,32 +11,35 @@ using CS.Util.Extensions;
 
 namespace CS.Util
 {
+    /// <summary>
+    /// A class designed to securely hold in memory, or on disk, a set of credentials (a username, and password).
+    /// The password will never exist in plaintext in managed memory or on the disk provided that this class is initialized properly.
+    /// </summary>
     public class Credentials : ICloneable, IDisposable, IEquatable<Credentials>
     {
         public string Username { get; }
-        public SecureString Password { get; }
-        public bool IsReadOnly => true;
+        private readonly SecureString _password;
 
         [Obsolete("Using this constructor will leave a plain-text copy of the password in managed memory because strings are immutable. Consider using one of the alternatives.")]
         public unsafe Credentials(string username, string password)
         {
             Username = username;
             fixed (char* chPtr = password)
-              Password = new SecureString(chPtr, password.Length);
-            Password.MakeReadOnly();
+              _password = new SecureString(chPtr, password.Length);
+            _password.MakeReadOnly();
         }
         public unsafe Credentials(string username, char[] password)
         {
             Username = username;
             fixed (char* chPtr = password)
-              Password = new SecureString(chPtr, password.Length);
-            Password.MakeReadOnly();
+              _password = new SecureString(chPtr, password.Length);
+            _password.MakeReadOnly();
         }
         public Credentials(string username, SecureString password)
         {
             Username = username;
-            Password = password;
-            Password.MakeReadOnly();
+            _password = password;
+            _password.MakeReadOnly();
         }
 
         ~Credentials()
@@ -57,12 +60,12 @@ namespace CS.Util
                 throw new ArgumentOutOfRangeException(nameof(Username), "Username must be no longer than 255 bytes for encryption.");
 
             var userBytes = Encoding.Unicode.GetBytes(Username);
-            var bstr = Marshal.SecureStringToBSTR(Password);
+            var bstr = Marshal.SecureStringToBSTR(_password);
             try
             {
                 var length = Marshal.ReadInt32(bstr, -4);
                 if (length > 255)
-                    throw new ArgumentOutOfRangeException(nameof(Password), "Password must be no longer than 255 bytes for encryption.");
+                    throw new ArgumentOutOfRangeException(nameof(_password), "Password must be no longer than 255 bytes for encryption.");
                 var bytes = new byte[length + userBytes.Length];
                 var bytesPin = GCHandle.Alloc(bytes, GCHandleType.Pinned);
                 try
@@ -76,7 +79,7 @@ namespace CS.Util
                     wrapped[0] = (byte)scope;
                     wrapped[1] = (byte)entropy.Length;
                     wrapped[2] = (byte)userBytes.Length;
-                    wrapped[3] = (byte)Password.Length;
+                    wrapped[3] = (byte)_password.Length;
                     Buffer.BlockCopy(entropy, 0, wrapped, VAR_LENGTH, entropy.Length);
                     Buffer.BlockCopy(encrypted, 0, wrapped, VAR_LENGTH + entropy.Length, encrypted.Length);
                     return wrapped;
@@ -136,9 +139,14 @@ namespace CS.Util
             }
         }
 
+        public SecureString GetPasswordCopy()
+        {
+            return _password.Copy();
+        }
+
         public Credentials Clone()
         {
-            return new Credentials(Username, Password.Copy());
+            return new Credentials(Username, _password.Copy());
         }
         object ICloneable.Clone()
         {
@@ -149,10 +157,10 @@ namespace CS.Util
             if (other == null) return false;
             if (other.Username != Username) return false;
 
-            if (Password != null && other.Password != null)
-                return Password.UseSecurely(p1 => other.Password.UseSecurely(p2 => p1 == p2));
+            if (_password != null && other._password != null)
+                return _password.UseSecurely(p1 => other._password.UseSecurely(p2 => p1 == p2));
 
-            return ((Password == null) == (other.Password == null));
+            return ((_password == null) == (other._password == null));
         }
         public override bool Equals(object obj)
         {
@@ -162,19 +170,20 @@ namespace CS.Util
         }
         public override string ToString()
         {
-            return $"User:{Username}, Pass:" + new string('*', Password.Length);
+            return $"User:{Username}, Pass:" + new string('*', _password.Length);
         }
         public override int GetHashCode()
         {
-            int pHash = Password.UseSecurely(pclr => pclr.GetHashCode());
+            int pHash = _password.UseSecurely(pclr => pclr.GetHashCode());
             return this.GetAutoHashCode(Username.GetHashCode(), pHash);
         }
         public void Dispose()
         {
-            Password.Dispose();
+            _password.Dispose();
             GC.SuppressFinalize(this);
         }
     }
+
     public enum SecureScope
     {
         CurrentUser,
