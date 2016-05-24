@@ -132,7 +132,7 @@ namespace CS.Wpf.Controls
             sb.FillBehavior = FillBehavior.HoldEnd;
 
             var ease = new PowerEase() { Power = 5 };
-            var duration = TimeSpan.FromMilliseconds(2000);
+            var duration = TimeSpan.FromMilliseconds(700);
 
             foreach (var c in controls)
             {
