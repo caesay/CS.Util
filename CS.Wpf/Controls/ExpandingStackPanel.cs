@@ -56,6 +56,7 @@ namespace CS.Wpf.Controls
                         wrapper.Scale.ScaleY = 0;
                     else if (parent.Orientation == Orientation.Horizontal)
                         wrapper.Scale.ScaleX = 0;
+                    el.Focusable = false;
                 }
             }
             else
@@ -71,6 +72,7 @@ namespace CS.Wpf.Controls
                     return;
                 parent.Children.RemoveAt(index);
                 parent.Children.Insert(index, el);
+                el.Focusable = wrapper.ChildFocusableDefault;
             }
         }
 
@@ -156,12 +158,16 @@ namespace CS.Wpf.Controls
                 size.SetValue(Storyboard.TargetPropertyProperty,
                     new PropertyPath(Orientation == Orientation.Horizontal ? "LayoutTransform.ScaleX" : "LayoutTransform.ScaleY"));
                 sb.Children.Add(size);
+
+                c.Child.Focusable = visible && c.ChildFocusableDefault;
             }
             return sb;
         }
 
         private class ExpandableWrapper : ContentControl
         {
+            public bool ChildFocusableDefault { get; }
+
             public FrameworkElement Child { get; }
 
             public ScaleTransform Scale
@@ -172,8 +178,9 @@ namespace CS.Wpf.Controls
 
             public ExpandableWrapper(FrameworkElement child)
             {
+                ChildFocusableDefault = child.Focusable;
                 LayoutTransform = new ScaleTransform(1, 1);
-
+                Focusable = false;
                 Child = child;
                 this.Content = child;
                 ClipToBounds = true;

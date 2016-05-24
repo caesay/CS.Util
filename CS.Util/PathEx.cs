@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace CS.Util
@@ -69,7 +70,6 @@ namespace CS.Util
 
             return common;
         }
-
         public static IEnumerable<string> EnumeratePathPattern(string pattern)
         {
             char separator = Path.DirectorySeparatorChar;
@@ -115,6 +115,98 @@ namespace CS.Util
             };
 
             return matchInternal(split.Skip(1).ToArray(), split[0]);
+        }
+
+        public static TempFile GetTempFile(string extension = ".tmp")
+        {
+            return new TempFile(GetTempFilePath(Path.GetTempPath(), extension));
+        }
+        internal static string GetTempFilePath(string root, string extension)
+        {
+            if (!extension.StartsWith("."))
+                extension = "." + extension;
+
+            // find unused file name
+            string path;
+            do
+            {
+                path = Path.Combine(root, Guid.NewGuid() + extension);
+            } while (File.Exists(path));
+
+            return path;
+        }
+
+        public static TempFolder GetTempFolder()
+        {
+            // find unused folder name
+            string path;
+            do
+            {
+                path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            } while (Directory.Exists(path));
+
+            return new TempFolder(path);
+        }
+    }
+
+    public class TempFolder : IDisposable
+    {
+        public string Path { get; }
+
+        public TempFolder(string path)
+        {
+            Path = path;
+            if (!Directory.Exists(path))
+                Directory.CreateDirectory(path);
+        }
+
+        public string GetTempFilePath(string extension = ".tmp")
+        {
+            return PathEx.GetTempFilePath(Path, extension);
+        }
+
+        public static implicit operator string(TempFolder file)
+        {
+            return file.Path;
+        }
+
+        public void Dispose()
+        {
+            if (Directory.Exists(Path))
+            {
+                try
+                {
+                    Directory.Delete(Path, true);
+                }
+                catch { /* we don't care about exceptions. */ }
+            }
+        }
+    }
+
+    public class TempFile : IDisposable
+    {
+        public string Path { get; }
+
+        public TempFile(string path)
+        {
+            Path = path;
+        }
+
+        public static implicit operator string(TempFile file)
+        {
+            return file.Path;
+        }
+
+        public void Dispose()
+        {
+            if (File.Exists(Path))
+            {
+                try
+                {
+                    File.Delete(Path);
+                }
+                catch { /* we don't care about exceptions. */ }
+            }
         }
     }
 }
