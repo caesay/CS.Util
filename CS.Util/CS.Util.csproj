@@ -82,6 +82,7 @@
     <Compile Include="Cryptography\Hashers.cs" />
     <Compile Include="Extensions\StreamExtensions.cs" />
     <Compile Include="Extensions\StringExtensions.cs" />
+    <Compile Include="PathEx.cs" />
     <Compile Include="SynchronizationContextProxy.cs" />
     <Compile Include="HSLAColor.cs" />
     <Compile Include="Input\GlobalHook.cs" />
