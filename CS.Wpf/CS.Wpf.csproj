@@ -57,11 +57,7 @@
     <Compile Include="Brushes\BilinearGradientBrush.cs" />
     <Compile Include="Brushes\CheckeredBrush.cs" />
     <Compile Include="Controls\ExpandingStackPanel.cs" />
-    <Compile Include="Controls\PhotoLoader\ImageLoaders\ExternalLoader.cs" />
-    <Compile Include="Controls\PhotoLoader\ImageLoaders\ILoader.cs" />
-    <Compile Include="Controls\PhotoLoader\ImageLoaders\LoaderFactory.cs" />
-    <Compile Include="Controls\PhotoLoader\ImageLoaders\LocalDiskLoader.cs" />
-    <Compile Include="Controls\PhotoLoader\Loader.cs" />
+    <Compile Include="Controls\PhotoLoader\PhotoLoader.cs" />
     <Compile Include="Controls\PhotoLoader\Manager.cs" />
     <Page Include="Controls\ProgressRing\Generic.xaml">
       <SubType>Designer</SubType>

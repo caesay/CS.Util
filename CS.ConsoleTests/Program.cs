@@ -66,9 +66,9 @@ namespace CS.ConsoleTests
 
             var secure = c.Encrypt(SecureScope.LocalMachine, entropy);
 
-            Credentials c2 = Credentials.Decrypt(secure);
-            string pass = Marshal.PtrToStringBSTR(Marshal.SecureStringToBSTR(c2.Password));
-            Console.WriteLine();
+            //Credentials c2 = Credentials.Decrypt(secure);
+            //string pass = Marshal.PtrToStringBSTR(Marshal.SecureStringToBSTR(c2.Password));
+            //Console.WriteLine();
         }
 
         static void testNetClient()

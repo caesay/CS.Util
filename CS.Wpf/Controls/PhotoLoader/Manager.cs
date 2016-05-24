@@ -5,13 +5,14 @@ using System.Text;
 using System.Windows.Controls;
 using System.Threading;
 using System.IO;
+using System.Net;
+using System.Runtime.InteropServices;
 using System.Windows.Media.Imaging;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using CS.Wpf.Controls.PhotoLoader.ImageLoaders;
 
-namespace CS.Wpf.Controls.PhotoLoader
+namespace CS.Wpf.Controls
 {
     internal sealed class Manager
     {
@@ -59,7 +60,7 @@ namespace CS.Wpf.Controls.PhotoLoader
 
             #region Loading Images from Resources
             ResourceDictionary resourceDictionary = new ResourceDictionary();
-            resourceDictionary.Source = new Uri("PhotoLoader;component/Resources.xaml", UriKind.Relative);
+            resourceDictionary.Source = new Uri("/CS.Wpf;component/Controls/PhotoLoader/Generic.xaml", UriKind.RelativeOrAbsolute);
             _loadingImage = resourceDictionary["ImageLoading"] as DrawingImage;
             _loadingImage.Freeze();
             _errorThumbnail = resourceDictionary["ImageError"] as DrawingImage;
@@ -132,12 +133,12 @@ namespace CS.Wpf.Controls.PhotoLoader
             image.Dispatcher.BeginInvoke(new ThreadStart(delegate
             {
                 // Set IsLoading Pty
-                Loader.SetIsLoading(image, true);
+                PhotoLoader.SetIsLoading(image, true);
 
                 if (image.RenderTransform == MatrixTransform.Identity) // Don't apply loading animation if image already has transform...
                 {
                     // Manage Waiting Image Parameter
-                    if (Loader.GetDisplayWaitingAnimationDuringLoading(image))
+                    if (PhotoLoader.GetDisplayWaitingAnimationDuringLoading(image))
                     {
                         image.Source = _loadingImage;
                         image.RenderTransformOrigin = new Point(0.5, 0.5);
@@ -172,7 +173,7 @@ namespace CS.Wpf.Controls.PhotoLoader
                         image.RenderTransform = MatrixTransform.Identity;
                     }
 
-                    if (Loader.GetErrorDetected(image) && Loader.GetDisplayErrorThumbnailOnError(image))
+                    if (PhotoLoader.GetErrorDetected(image) && PhotoLoader.GetDisplayErrorThumbnailOnError(image))
                     {
                         imageSource = _errorThumbnail;
                     }
@@ -182,7 +183,7 @@ namespace CS.Wpf.Controls.PhotoLoader
                     if (markAsFinished)
                     {
                         // Set IsLoading Pty
-                        Loader.SetIsLoading(image, false);
+                        PhotoLoader.SetIsLoading(image, false);
                     }
                 }));
             }
@@ -197,7 +198,7 @@ namespace CS.Wpf.Controls.PhotoLoader
             {
                 image.Dispatcher.BeginInvoke(new ThreadStart(delegate
                 {
-                    Loader.SetErrorDetected(image, true);
+                    PhotoLoader.SetErrorDetected(image, true);
                 }));
                 return null;
             }
@@ -207,21 +208,22 @@ namespace CS.Wpf.Controls.PhotoLoader
             if (!string.IsNullOrWhiteSpace(source))
             {
                 Stream imageStream = null;
-
-                SourceType sourceType = SourceType.LocalDisk;
-
-                image.Dispatcher.Invoke(new ThreadStart(delegate
-                {
-                    sourceType = Loader.GetSourceType(image);
-                }));
-
                 try
                 {
                     if (loadTask.Stream == null)
                     {
-                        ILoader loader = LoaderFactory.CreateLoader(sourceType);
-                        imageStream = loader.Load(source);
-                        loadTask.Stream = imageStream;
+                        var sourceUri = new Uri(source);
+                        if (sourceUri.IsFile || sourceUri.IsUnc || !sourceUri.IsAbsoluteUri)
+                        {
+                            imageStream = File.OpenRead(source);
+                        }
+                        else
+                        {
+                            using (var web = new WebClient())
+                            {
+                                imageStream = new MemoryStream(web.DownloadData(sourceUri));
+                            }
+                        }
                     }
                     else
                     {
@@ -283,7 +285,7 @@ namespace CS.Wpf.Controls.PhotoLoader
                 {
                     image.Dispatcher.BeginInvoke(new ThreadStart(delegate
                     {
-                        Loader.SetErrorDetected(image, true);
+                        PhotoLoader.SetErrorDetected(image, true);
                     }));
                 }
                 else
@@ -292,7 +294,7 @@ namespace CS.Wpf.Controls.PhotoLoader
 
                     image.Dispatcher.BeginInvoke(new ThreadStart(delegate
                     {
-                        Loader.SetErrorDetected(image, false);
+                        PhotoLoader.SetErrorDetected(image, false);
                     }));
                 }
             }
@@ -300,7 +302,7 @@ namespace CS.Wpf.Controls.PhotoLoader
             {
                 image.Dispatcher.BeginInvoke(new ThreadStart(delegate
                 {
-                    Loader.SetErrorDetected(image, false);
+                    PhotoLoader.SetErrorDetected(image, false);
                 }));
             }
 
@@ -329,7 +331,7 @@ namespace CS.Wpf.Controls.PhotoLoader
 
                         loadTask.Image.Dispatcher.Invoke(new ThreadStart(delegate
                         {
-                            displayOption = Loader.GetDisplayOption(loadTask.Image);
+                            displayOption = PhotoLoader.GetDisplayOption(loadTask.Image);
                         }));
 
                         ImageSource bitmapSource = GetBitmapSource(loadTask, DisplayOptions.Preview);

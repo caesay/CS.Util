@@ -3,14 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace CS.Wpf.Controls.PhotoLoader
+namespace CS.Wpf.Controls
 {
-    public enum SourceType
-    {
-        LocalDisk,
-        ExternalResource
-    }
-
     public enum DisplayOptions
     {
         Preview,
