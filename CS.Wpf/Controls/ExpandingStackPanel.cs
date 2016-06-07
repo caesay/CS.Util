@@ -78,11 +78,11 @@ namespace CS.Wpf.Controls
 
         public bool Expanded { get; private set; }
 
-        private readonly PropertyChangedCallback _defaultCallback;
+        private static readonly PropertyChangedCallback _defaultCallback;
 
-        public ExpandingStackPanel()
+        static ExpandingStackPanel()
         {
-            if (!DesignerProperties.GetIsInDesignMode(this))
+            if (!DesignerProperties.GetIsInDesignMode(new DependencyObject()))
             {
                 _defaultCallback = OrientationProperty?.GetMetadata(typeof(StackPanel))?.PropertyChangedCallback;
 
@@ -95,13 +95,14 @@ namespace CS.Wpf.Controls
             }
         }
 
-        private void OnOrientationChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        private static void OnOrientationChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
+            var el = d as ExpandingStackPanel;
             _defaultCallback?.Invoke(d, e);
-            if (Expanded)
+            if (el.Expanded)
                 return;
 
-            foreach (var c in Children.OfType<ExpandableWrapper>())
+            foreach (var c in el.Children.OfType<ExpandableWrapper>())
             {
                 if (((System.Windows.Controls.Orientation)e.NewValue) == Orientation.Horizontal)
                 {
