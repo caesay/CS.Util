@@ -1,7 +1,7 @@
 ﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <ResourceDictionary.MergedDictionaries>
-        <ResourceDictionary Source="/Controls/PhotoLoader/Generic.xaml" />
-        <ResourceDictionary Source="/Controls/ProgressRing/Generic.xaml" />
-        <ResourceDictionary Source="/Controls/TransitioningContentControl/Generic.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/CS.Wpf;component/Controls/PhotoLoader/Generic.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/CS.Wpf;component/Controls/ProgressRing/Generic.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/CS.Wpf;component/Controls/TransitioningContentControl/Generic.xaml" />
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>
