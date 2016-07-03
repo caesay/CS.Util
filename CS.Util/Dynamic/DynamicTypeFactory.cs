@@ -1,31 +1,51 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Diagnostics.SymbolStore;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using CS.Util;
+using CS.Util.Extensions;
 
 namespace CS.Util.Dynamic
 {
     public delegate object CompiledMethodDelegate(object target, object[] args);
-    public delegate object ImplementedMethodDelegate(MethodInfo method, object[] args);
+    public delegate object DynamicInterfaceMethodHandler(MethodInfo method, object[] args);
 
     public static class DynamicTypeFactory
     {
         private static readonly AssemblyBuilder asmBuilder;
         private static readonly ModuleBuilder modBuilder;
         private const int ranLength = 6;
+        private static bool emitSymbols = false;
 
         static DynamicTypeFactory()
         {
-            asmBuilder = Thread.GetDomain()
-                .DefineDynamicAssembly(new AssemblyName("dynamic_type_factory"), AssemblyBuilderAccess.Run);
-            modBuilder = asmBuilder.DefineDynamicModule("dynamic_type_factory");
+            asmBuilder = Thread.GetDomain().DefineDynamicAssembly(new AssemblyName("dynamic_type_factory"), AssemblyBuilderAccess.Run);
+
+#if DEBUG
+            if (Debugger.IsAttached)
+            {
+                emitSymbols = true;
+                Type daType = typeof(DebuggableAttribute);
+                ConstructorInfo daCtor = daType.GetConstructor(new Type[] { typeof(DebuggableAttribute.DebuggingModes) });
+                CustomAttributeBuilder daBuilder = new CustomAttributeBuilder(daCtor, new object[]
+                {
+                    DebuggableAttribute.DebuggingModes.DisableOptimizations |
+                    DebuggableAttribute.DebuggingModes.Default
+                });
+                asmBuilder.SetCustomAttribute(daBuilder);
+            }
+#endif
+
+            modBuilder = asmBuilder.DefineDynamicModule("dynamic_type_factory_module", emitSymbols);
         }
 
         public static Type Merge<T1, T2>()
@@ -69,20 +89,34 @@ namespace CS.Util.Dynamic
             return typeBuilder.CreateType();
         }
 
-        public static object Implement(Type target, ImplementedMethodDelegate implementer)
+        public static T Implement<T>(IDictionary<string, Func<object[], object>> methods)
+        {
+            return (T)Implement(typeof(T), methods);
+        }
+
+        public static object Implement(Type target, IDictionary<string, Func<object[], object>> methods)
+        {
+            var interfaceMethods = target.GetMethods().Concat(target.GetInterfaces().SelectMany(inter => inter.GetMethods()));
+            if (!interfaceMethods.All(m => methods.ContainsKey(m.Name)))
+                throw new ArgumentException("All methods of the specified interface must be implemented.", nameof(methods));
+
+            DynamicInterfaceMethodHandler handler = (methodInfo, arguments) => methods[methodInfo.Name](arguments);
+            return Implement(target, handler);
+        }
+
+        public static object Implement(Type target, DynamicInterfaceMethodHandler implementer)
         {
             if (!target.IsInterface)
                 throw new ArgumentException("target must be an interface type.");
-
             var name = $"dynImplement({RandomEx.GetString(ranLength)})_" + target.Name;
             var typeBuilder = modBuilder.DefineType(name, TypeAttributes.Public | TypeAttributes.Class);
             typeBuilder.AddInterfaceImplementation(target);
 
-            var implementerField = typeBuilder.DefineField("_implementer", typeof(ImplementedMethodDelegate), FieldAttributes.Private);
+            var implementerField = typeBuilder.DefineField("_implementer", typeof(DynamicInterfaceMethodHandler), FieldAttributes.Private);
 
             var constructorBuilder = typeBuilder.DefineConstructor(MethodAttributes.Public,
                 CallingConventions.Standard | CallingConventions.HasThis,
-                new Type[] { typeof(ImplementedMethodDelegate) });
+                new Type[] { typeof(DynamicInterfaceMethodHandler) });
 
             // emit constructor
             var constructorIl = constructorBuilder.GetILGenerator();
@@ -91,16 +125,31 @@ namespace CS.Util.Dynamic
             constructorIl.Emit(OpCodes.Stfld, implementerField);
             constructorIl.Emit(OpCodes.Ret);
 
+            string debugPath = null;
+            ISymbolDocumentWriter doc = null;
+            if (emitSymbols)
+            {
+                debugPath = Path.GetTempFileName();
+                doc = modBuilder.DefineDocument(debugPath, Guid.Empty, Guid.Empty, Guid.Empty);
+            }
+
             // implement all interface methods.
             var methods = target.GetMethods().Concat(target.GetInterfaces().SelectMany(inter => inter.GetMethods()));
             foreach (var method in methods)
             {
+                if (emitSymbols)
+                    File.AppendAllText(debugPath, ".method " + method.Name + Environment.NewLine);
+
                 var methodParamaters = method.GetParameters().Select(p => p.ParameterType).ToArray();
                 var methodBuilder = typeBuilder.DefineMethod(method.Name, MethodAttributes.Public | MethodAttributes.Virtual, method.CallingConvention,
                     method.ReturnType, methodParamaters);
 
-                var methodIl = methodBuilder.GetILGenerator();
+                var methodIl = emitSymbols
+                    ? (ILGeneratorInterface)new DebuggableILGenerator(methodBuilder.GetILGenerator(), doc, debugPath)
+                    : new StandardILGenerator(methodBuilder.GetILGenerator());
+
                 var objLocalIndex = methodIl.DeclareLocal(typeof(object[])).LocalIndex;
+                var retIsOk = methodIl.DefineLabel();
 
                 // create new object[] to hold paramaters and store it to local 
                 methodIl.Emit(OpCodes.Ldc_I4, methodParamaters.Length);
@@ -127,20 +176,46 @@ namespace CS.Util.Dynamic
                 methodIl.Emit(OpCodes.Ldloc, objLocalIndex);
 
                 // call it.
-                methodIl.Emit(method.IsFinal ? OpCodes.Call : OpCodes.Callvirt, typeof(ImplementedMethodDelegate).GetMethod("Invoke"));
+                methodIl.Emit(method.IsFinal ? OpCodes.Call : OpCodes.Callvirt, typeof(DynamicInterfaceMethodHandler).GetMethod("Invoke"));
 
+                // handle return type mismatches.
                 if (method.ReturnType == typeof(void))
                 {
-                    methodIl.Emit(OpCodes.Pop);
+                    methodIl.Emit(OpCodes.Ldnull);
+                    // if the last two stack elements are equal (ldnull and delegate result) goto return statement.
+                    methodIl.Emit(OpCodes.Beq, retIsOk);
+                    // else throw exception
+                    methodIl.Emit(OpCodes.Ldstr,
+                        "Method return type mismatch: The implementing dynamic delegate tried to return a non-null value, " +
+                        "when the actual return value is void.");
+                    methodIl.Emit(OpCodes.Newobj, typeof(TargetException).GetConstructor(new Type[] { typeof(string) }));
+                    methodIl.Emit(OpCodes.Throw);
                 }
-                else if (method.ReturnType.IsValueType)
-                    methodIl.Emit(OpCodes.Unbox_Any, method.ReturnType);
+                else
+                {
+                    methodIl.Emit(OpCodes.Dup);
+                    methodIl.Emit(OpCodes.Callvirt, typeof(object).GetMethod("GetType", BindingFlags.Instance | BindingFlags.Public));
+                    methodIl.EmitType(method.ReturnType, false);
+                    // if the last two stack elements are equal (getType result and the returntype, goto return statement)
+                    methodIl.Emit(OpCodes.Callvirt, typeof(Type).GetMethod("Equals", new Type[] { typeof(Type) }));
+                    methodIl.Emit(OpCodes.Ldc_I4_1);
+                    methodIl.Emit(OpCodes.Beq, retIsOk);
 
+                    methodIl.Emit(OpCodes.Ldstr,
+                        "Method return type mismatch: The implementing dynamic delegate tried to return a type that does not " +
+                        "match the return type of this method.");
+                    methodIl.Emit(OpCodes.Newobj, typeof(TargetException).GetConstructor(new Type[] { typeof(string) }));
+                    methodIl.Emit(OpCodes.Throw);
+                }
+
+                methodIl.MarkLabel(retIsOk);
+                if (method.ReturnType.IsValueType && method.ReturnType != typeof(void))
+                    methodIl.Emit(OpCodes.Unbox_Any, method.ReturnType);
                 methodIl.Emit(OpCodes.Ret);
             }
 
             var createdType = typeBuilder.CreateType();
-            var constructor = createdType.GetConstructor(new Type[] { typeof(ImplementedMethodDelegate) });
+            var constructor = createdType.GetConstructor(new Type[] { typeof(DynamicInterfaceMethodHandler) });
             return constructor.Invoke(new object[] { implementer });
         }
 

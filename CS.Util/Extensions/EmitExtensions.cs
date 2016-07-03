@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Text;
 using System.Threading.Tasks;
+using CS.Util.Dynamic;
 
 namespace CS.Util.Extensions
 {
@@ -22,6 +23,22 @@ namespace CS.Util.Extensions
                    new[] { typeof(string) }, null));
         }
         public static void EmitType(this ILGenerator gen, Type t, bool assemblyQualified = true)
+        {
+            if (assemblyQualified)
+            {
+                gen.Emit(OpCodes.Ldstr, t.AssemblyQualifiedName);
+                gen.Emit(OpCodes.Call,
+                    (typeof(Type)).GetMethod("GetType", BindingFlags.Static | BindingFlags.Public, null,
+                        new[] { typeof(string) }, null));
+            }
+            else
+            {
+                gen.Emit(OpCodes.Ldtoken, t);
+                gen.Emit(OpCodes.Call, typeof(Type).GetMethod("GetTypeFromHandle", new Type[1] { typeof(RuntimeTypeHandle) }));
+            }
+        }
+
+        public static void EmitType(this ILGeneratorInterface gen, Type t, bool assemblyQualified = true)
         {
             if (assemblyQualified)
             {

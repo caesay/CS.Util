@@ -68,6 +68,7 @@
     <Compile Include="Cryptography\HashHelper.cs" />
     <Compile Include="Cryptography\PBKDF2.cs" />
     <Compile Include="DisposableTimer.cs" />
+    <Compile Include="Dynamic\DebuggableILGenerator.cs" />
     <Compile Include="EndianBitConverter.cs" />
     <Compile Include="EqualityComparers.cs" />
     <Compile Include="Extensions\CollectionExtensions.cs" />
