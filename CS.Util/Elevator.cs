@@ -11,8 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CS.Util.Dynamic;
 using CS.Util.Extensions;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using CS.Util.Json;
 
 namespace CS.Util
 {
@@ -32,7 +31,7 @@ namespace CS.Util
         public static ElevatorAssembly<Action> Compile(Action method, ElevatorOptions options = null)
         {
             var assy = InternalGenerate(method.Method, method.Target, new Type[] { }, null, options);
-            return new ElevatorAssembly<Action>(() => assy.Run(new object[] {  }), assy.Dispose);
+            return new ElevatorAssembly<Action>(() => assy.Run(new object[] { }), assy.Dispose);
         }
         /// <summary>
         /// Compiles the provided delegate into a separate assembly, so that the code can be executed with different
@@ -165,7 +164,7 @@ namespace CS.Util
         public static ElevatorAssembly<Func<T1, T2, TResult>> Compile<T1, T2, TResult>(Func<T1, T2, TResult> method, ElevatorOptions options = null)
         {
             var assy = InternalGenerate(method.Method, method.Target, new Type[] { typeof(T1), typeof(T2) }, typeof(TResult), options);
-            return new ElevatorAssembly<Func<T1,T2, TResult>>((one, two) => (TResult)assy.Run(new object[] { one, two }), assy.Dispose);
+            return new ElevatorAssembly<Func<T1, T2, TResult>>((one, two) => (TResult)assy.Run(new object[] { one, two }), assy.Dispose);
         }
         /// <summary>
         /// Compiles the provided delegate into a separate assembly, so that the code can be executed with different
@@ -278,27 +277,30 @@ namespace CS.Util
         }
         private static Assembly[] EmitModifiedMethod(MethodBuilder methodBuilder, MethodInfo methodInfo, object target)
         {
+            // methodinfos
+            var deseri = (typeof(SimpleJson)).GetMethods()
+                .Where(x => x.Name == "DeserializeObject")
+                .Where(x => x.GetParameters().Count() == 1)
+                .First(x => !x.ContainsGenericParameters);
+            var obgetv = typeof(JsonObject).GetMethod("GetValue", BindingFlags.Public | BindingFlags.Instance, null, new[] { typeof(string) }, null);
+            var tkval = typeof(JsonObject).GetMethod("ToObject", BindingFlags.Public | BindingFlags.Instance, null, new[] { typeof(Type) }, null);
+            var gttype = (typeof(Type)).GetMethod("GetType", BindingFlags.Static | BindingFlags.Public, null, new[] { typeof(string) }, null);
+
             // init method builder
-            var jsonObj = JsonConvert.SerializeObject(target);
+            var jsonObj = SimpleJson.SerializeObject(target);
             var reader = MethodBodyReader.Read(methodInfo);
             var writer = new MethodBodyBuilder(methodBuilder);
 
             // init method locals
-            var locals = reader.Locals.Select(lc => lc.LocalType).Concat(new[] { typeof(JObject) });
+            var locals = reader.Locals.Select(lc => lc.LocalType).Concat(new[] { typeof(JsonObject) });
             writer.DeclareLocals(locals);
             writer.DeclareExceptionHandlers(reader.ExceptionHandlers);
 
             // serialize static container class into method
             var gen = writer.Generator;
             gen.Emit(OpCodes.Ldstr, jsonObj);
-            gen.Emit(OpCodes.Call,
-                (typeof(JObject)).GetMethod("Parse", BindingFlags.Static | BindingFlags.Public, null,
-                    new[] { typeof(string) }, null));
+            gen.Emit(OpCodes.Call, deseri);
             gen.Emit(OpCodes.Stloc, locals.Count() - 1);
-
-            var obgetv = typeof(JObject).GetMethod("GetValue", BindingFlags.Public | BindingFlags.Instance, null, new[] { typeof(string) }, null);
-            var tkval = typeof(JToken).GetMethod("ToObject", BindingFlags.Public | BindingFlags.Instance, null, new[] { typeof(Type) }, null);
-            var gttype = (typeof(Type)).GetMethod("GetType", BindingFlags.Static | BindingFlags.Public, null, new[] { typeof(string) }, null);
 
             // emit the original IL with the exception that ldarg.0 needs to load our JObject
             // instead of the delegate container class.
@@ -339,9 +341,9 @@ namespace CS.Util
                         newBody.Add(new Instruction(-1, OpCodes.Ldstr) { Operand = field.FieldType.AssemblyQualifiedName });
                         newBody.Add(new Instruction(-1, OpCodes.Call) { Operand = gttype });
                         newBody.Add(new Instruction(-1, OpCodes.Callvirt) { Operand = tkval });
-                        if(field.FieldType.IsValueType)
+                        if (field.FieldType.IsValueType)
                             newBody.Add(new Instruction(-1, OpCodes.Unbox_Any) { Operand = field.FieldType });
-                        else 
+                        else
                             newBody.Add(new Instruction(-1, OpCodes.Castclass) { Operand = field.FieldType });
                         index++;
                     }
@@ -371,12 +373,13 @@ namespace CS.Util
                 try
                 {
                     resultFile = args[1];
-                    var json = JArray.Parse(File.ReadAllText(args[0]));
+                    var json = (JsonArray)SimpleJson.DeserializeObject(File.ReadAllText(args[0]));
                     List<object> paramaters = new List<object>();
                     foreach (var token in json)
                     {
-                        var type = Type.GetType(token.SelectToken("Key").ToString());
-                        paramaters.Add(token.SelectToken("Value").ToObject(type));
+                        var ob = (JsonObject)token;
+                        var type = Type.GetType(ob.GetValue("Key").ToString());
+                        paramaters.Add(((JsonObject)ob.GetValue("Value")).ToObject(type));
                     }
 
                     if (paramaters.Count != paramCount)
@@ -392,7 +395,7 @@ namespace CS.Util
 
                     object result = mi.Invoke(null, paramaters.ToArray());
 
-                    File.WriteAllText(resultFile, JsonConvert.SerializeObject(result));
+                    File.WriteAllText(resultFile, SimpleJson.SerializeObject(result));
                     return 0;
                 }
                 catch (Exception ex)
@@ -444,7 +447,7 @@ namespace CS.Util
                     paras.Select(o => new KeyValuePair<string, object>(o.GetType().AssemblyQualifiedName, o))
                     .ToList();
 
-                var serialized = JsonConvert.SerializeObject(wType);
+                var serialized = SimpleJson.SerializeObject(wType);
                 File.WriteAllText(argsPath, serialized);
 
                 ProcessStartInfo stInfo = new ProcessStartInfo(_exePath, "\"" + argsPath + "\" \"" + resultPath + "\"");
@@ -463,7 +466,7 @@ namespace CS.Util
                 }
                 catch (Win32Exception win32ex)
                 {
-                    if(win32ex.HResult == -2147467259)
+                    if (win32ex.HResult == -2147467259)
                         throw new ElevatorException("The option 'RunElevated'=true, and user denied the UAC prompt.", win32ex);
                     throw;
                 }
@@ -493,11 +496,11 @@ namespace CS.Util
 
                         var resultJson = File.ReadAllText(resultPath);
                         File.Delete(resultPath);
-                        if(File.Exists(argsPath))
+                        if (File.Exists(argsPath))
                             File.Delete(argsPath);
                         try
                         {
-                            return JsonConvert.DeserializeObject(resultJson, _returnType);
+                            return SimpleJson.DeserializeObject(resultJson, _returnType);
                         }
                         catch (Exception ex)
                         {
@@ -545,11 +548,11 @@ namespace CS.Util
         {
         }
         internal ElevatorException(string message)
-            :base(message)
+            : base(message)
         {
         }
         internal ElevatorException(string message, Exception innerException)
-            :base(message, innerException)
+            : base(message, innerException)
         {
         }
     }

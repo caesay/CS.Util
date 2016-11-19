@@ -165,9 +165,9 @@ namespace CS.Util
             return PathEx.GetTempFilePath(Path, extension);
         }
 
-        public static implicit operator string(TempFolder file)
+        public static implicit operator string(TempFolder folder)
         {
-            return file.Path;
+            return folder.Path;
         }
 
         public void Dispose()

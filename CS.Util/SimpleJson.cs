@@ -71,12 +71,13 @@ using System.Globalization;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Text;
-using CS.Util.SimpleJson.Reflection;
+using System.Windows.Forms;
+using CS.Util.Json.Reflection;
 
 // ReSharper disable LoopCanBeConvertedToQuery
 // ReSharper disable RedundantExplicitArrayCreation
 // ReSharper disable SuggestUseVarKeywordEvident
-namespace CS.Util.SimpleJson
+namespace CS.Util.Json
 {
     /// <summary>
     /// Represents the json array.
@@ -222,6 +223,21 @@ namespace CS.Util.SimpleJson
         public bool TryGetValue(string key, out object value)
         {
             return _members.TryGetValue(key, out value);
+        }
+
+        public object GetValue(string key)
+        {
+            return this[key];
+        }
+
+        public object ToObject(Type type)
+        {
+            return SimpleJson.CurrentJsonSerializerStrategy.DeserializeObject(this, type);
+        }
+
+        public T ToObject<T>()
+        {
+            return (T)ToObject(typeof(T));
         }
 
         /// <summary>
@@ -489,7 +505,7 @@ namespace CS.Util.SimpleJson
     }
 }
 
-namespace CS.Util.SimpleJson
+namespace CS.Util.Json
 {
     /// <summary>
     /// This class encodes and decodes JSON strings.

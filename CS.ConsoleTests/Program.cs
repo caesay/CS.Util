@@ -7,17 +7,46 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
 using CS.Reactive;
 using CS.Reactive.Network;
 using CS.Util;
+using CS.Util.Collections;
 using CS.Util.Cryptography;
 using CS.Util.Extensions;
+using CS.Util.Json;
 
 namespace CS.ConsoleTests
 {
+    public class ASD
+    {
+        public string i1 = "asdasdsad";
+        public string i2 { get; set; } = "asdasdsad";
+        private string i3 { get; set; } = "asdasdsad";
+        public ASD2 i4 = new ASD2();
+    }
+
+    public class ASD2
+    {
+        public string hello = "asdsad";
+        public int[] numbers = new[] {1, 2, 3, 4};
+    }
     class Program
     {
         static void Main(string[] args)
+        {
+            var message = "HI";
+            var delg = Elevator.Compile(() =>
+            {
+                MessageBox.Show(message);
+                return "BLESSED";
+            });
+            var asd = delg.Run();
+
+            Console.WriteLine();
+        }
+
+        static void testPrettyTime()
         {
             var st2 = PrettyTime.Format(DateTime.Now.AddDays(1).AddHours(1));
             var st32 = PrettyTime.Format(DateTime.Now.AddHours(23));
