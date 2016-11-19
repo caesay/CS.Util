@@ -85,6 +85,7 @@
     <Compile Include="Extensions\StringExtensions.cs" />
     <Compile Include="PathEx.cs" />
     <Compile Include="PrettySize.cs" />
+    <Compile Include="SimpleJson.cs" />
     <Compile Include="SynchronizationContextProxy.cs" />
     <Compile Include="HSLAColor.cs" />
     <Compile Include="Input\GlobalHook.cs" />
