@@ -67,6 +67,7 @@
     <Compile Include="Cryptography\DeriveBytesBase.cs" />
     <Compile Include="Cryptography\HashHelper.cs" />
     <Compile Include="Cryptography\PBKDF2.cs" />
+    <Compile Include="DateTimeEx.cs" />
     <Compile Include="DisposableTimer.cs" />
     <Compile Include="Dynamic\DebuggableILGenerator.cs" />
     <Compile Include="Elevator.cs" />
