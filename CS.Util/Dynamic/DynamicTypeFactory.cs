@@ -193,6 +193,11 @@ namespace CS.Util.Dynamic
                 }
                 else
                 {
+                    // check the value for null, if its null just return it
+                    methodIl.Emit(OpCodes.Dup);
+                    methodIl.Emit(OpCodes.Ldnull);
+                    methodIl.Emit(OpCodes.Beq, retIsOk);
+
                     methodIl.Emit(OpCodes.Dup);
                     methodIl.Emit(OpCodes.Callvirt, typeof(object).GetMethod("GetType", BindingFlags.Instance | BindingFlags.Public));
                     methodIl.EmitType(method.ReturnType, false);
