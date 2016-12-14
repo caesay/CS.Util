@@ -134,6 +134,7 @@ namespace CS.Util.Dynamic
             }
 
             // implement all interface methods.
+            Dictionary<string, MethodBuilder> builders = new Dictionary<string, MethodBuilder>();
             var methods = target.GetMethods().Concat(target.GetInterfaces().SelectMany(inter => inter.GetMethods()));
             foreach (var method in methods)
             {
@@ -143,6 +144,8 @@ namespace CS.Util.Dynamic
                 var methodParamaters = method.GetParameters().Select(p => p.ParameterType).ToArray();
                 var methodBuilder = typeBuilder.DefineMethod(method.Name, MethodAttributes.Public | MethodAttributes.Virtual, method.CallingConvention,
                     method.ReturnType, methodParamaters);
+
+                builders[method.Name] = methodBuilder;
 
                 var methodIl = emitSymbols
                     ? (ILGeneratorInterface)new DebuggableILGenerator(methodBuilder.GetILGenerator(), doc, debugPath)
@@ -201,7 +204,7 @@ namespace CS.Util.Dynamic
                     methodIl.Emit(OpCodes.Dup);
                     methodIl.Emit(OpCodes.Callvirt, typeof(object).GetMethod("GetType", BindingFlags.Instance | BindingFlags.Public));
                     methodIl.EmitType(method.ReturnType, false);
-                    // if the last two stack elements are equal (getType result and the returntype, goto return statement)
+                    // if the last two stack elements are equal (getType result and the returntype) goto return statement
                     methodIl.Emit(OpCodes.Callvirt, typeof(Type).GetMethod("Equals", new Type[] { typeof(Type) }));
                     methodIl.Emit(OpCodes.Ldc_I4_1);
                     methodIl.Emit(OpCodes.Beq, retIsOk);
@@ -219,6 +222,17 @@ namespace CS.Util.Dynamic
                 methodIl.Emit(OpCodes.Ret);
             }
 
+            // create properties and match them up to appropriate methods.
+            var properties = target.GetProperties().Concat(target.GetInterfaces().SelectMany(inter => inter.GetProperties()));
+            foreach (var prop in properties)
+            {
+                var property = typeBuilder.DefineProperty(prop.Name, PropertyAttributes.HasDefault, prop.PropertyType, Type.EmptyTypes);
+                if (builders.ContainsKey("get_" + prop.Name))
+                    property.SetGetMethod(builders["get_" + prop.Name]);
+                if (builders.ContainsKey("set_" + prop.Name))
+                    property.SetSetMethod(builders["set_" + prop.Name]);
+            }
+
             var createdType = typeBuilder.CreateType();
             var constructor = createdType.GetConstructor(new Type[] { typeof(DynamicInterfaceMethodHandler) });
             return constructor.Invoke(new object[] { implementer });
@@ -229,7 +243,7 @@ namespace CS.Util.Dynamic
             ParameterInfo[] parms = method.GetParameters();
             int numberOfParameters = parms.Length;
             Type[] args = { typeof(object), typeof(object[]) };
-            DynamicMethod dynam = new DynamicMethod(String.Empty, typeof(object), args, typeof(CompiledMethodDelegate));
+            DynamicMethod dynam = new DynamicMethod(String.Empty, typeof(object), args, typeof(CompiledMethodDelegate), true);
             ILGenerator il = dynam.GetILGenerator();
             Label argsOk = il.DefineLabel();
             il.Emit(OpCodes.Ldarg_1);
