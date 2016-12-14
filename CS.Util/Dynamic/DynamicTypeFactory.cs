@@ -23,8 +23,9 @@ namespace CS.Util.Dynamic
     {
         private static readonly AssemblyBuilder asmBuilder;
         private static readonly ModuleBuilder modBuilder;
-        private const int ranLength = 6;
+        private const int ranLength = 12;
         private static bool emitSymbols = false;
+        private static Dictionary<string, Type> _implementerCache = new Dictionary<string, Type>();
 
         static DynamicTypeFactory()
         {
@@ -105,6 +106,23 @@ namespace CS.Util.Dynamic
         }
 
         public static object Implement(Type target, DynamicInterfaceMethodHandler implementer)
+        {
+            Type createdType;
+            if(_implementerCache.ContainsKey(target.AssemblyQualifiedName))
+            {
+                createdType = _implementerCache[target.AssemblyQualifiedName];
+            }
+            else
+            {
+                createdType = CreateImplementerType(target, implementer);
+                _implementerCache[target.AssemblyQualifiedName] = createdType;
+            }
+
+            var constructor = createdType.GetConstructor(new Type[] { typeof(DynamicInterfaceMethodHandler) });
+            return constructor.Invoke(new object[] { implementer });
+        }
+
+        private static Type CreateImplementerType(Type target, DynamicInterfaceMethodHandler implementer)
         {
             if (!target.IsInterface)
                 throw new ArgumentException("target must be an interface type.");
@@ -233,9 +251,7 @@ namespace CS.Util.Dynamic
                     property.SetSetMethod(builders["set_" + prop.Name]);
             }
 
-            var createdType = typeBuilder.CreateType();
-            var constructor = createdType.GetConstructor(new Type[] { typeof(DynamicInterfaceMethodHandler) });
-            return constructor.Invoke(new object[] { implementer });
+            return typeBuilder.CreateType();
         }
 
         public static CompiledMethodDelegate Compile(MethodInfo method)
