@@ -136,7 +136,12 @@ namespace CS.Util.Dynamic
                                 generator.Emit(instruction.OpCode,
                                     _locals[((LocalVariableInfo)instruction.Operand).LocalIndex]);
                             else if (instruction.Operand is int)
-                                generator.Emit(instruction.OpCode, _locals[(int)instruction.Operand]);
+                            {
+                                if (TargetsLocalVariable(instruction.OpCode))
+                                    generator.Emit(instruction.OpCode, _locals[(int) instruction.Operand]);
+                                else
+                                    generator.Emit(instruction.OpCode, (int)instruction.Operand);
+                            }
                             else
                                 throw new NotSupportedException("Operand for InlineVar is not of expected type");
                             break;
@@ -228,6 +233,22 @@ namespace CS.Util.Dynamic
                             throw new NotSupportedException(string.Format("Unexpected operand type: {0}.", instruction.OpCode.OperandType));
                     }
                 }
+            }
+        }
+
+        bool TargetsLocalVariable(OpCode opcode)
+        {
+            return opcode.Name.Contains("loc");
+        }
+
+        class ThisParameter : ParameterInfo
+        {
+            public ThisParameter(MethodBase method)
+            {
+                this.MemberImpl = method;
+                this.ClassImpl = method.DeclaringType;
+                this.NameImpl = "this";
+                this.PositionImpl = -1;
             }
         }
 
