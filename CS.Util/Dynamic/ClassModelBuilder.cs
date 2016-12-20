@@ -43,16 +43,7 @@ namespace CS.Util.Dynamic
             return this;
         }
 
-        public ClassModelBuilder Constructor(string name, Type[] parameters, Action<DynamicClassContext, object[]> methodBody)
-        {
 
-            return Constructor(name, parameters, typeof(void), MethodBodyReader.Read(methodBody.Method));
-        }
-
-        public ClassModelBuilder Constructor(string name, Type[] parameters, Type returnType, Func<DynamicClassContext, object[], object> methodBody)
-        {
-            return Constructor(name, parameters, returnType, MethodBodyReader.Read(methodBody.Method));
-        }
 
         private ClassModelBuilder Constructor(string name, Type[] parameters, Type returnType, MethodBodyReader body)
         {
@@ -60,15 +51,19 @@ namespace CS.Util.Dynamic
             return this;
         }
 
-        public ClassModelBuilder Method(string name, Type[] parameters, Action<DynamicClassContext, object[]> methodBody)
+        public ClassModelBuilder Method<TReturn>(string name, Func<DynamicClassContext, TReturn> body)
         {
-
-            return Method(name, parameters, typeof(void), MethodBodyReader.Read(methodBody.Method));
+            return Method(name, Type.EmptyTypes, typeof(TReturn), MethodBodyReader.Read(body.Method));
         }
 
-        public ClassModelBuilder Method(string name, Type[] parameters, Type returnType, Func<DynamicClassContext, object[], object> methodBody)
+        public ClassModelBuilder Method<T1, TReturn>(string name, Func<DynamicClassContext, T1, TReturn> body)
         {
-            return Method(name, parameters, returnType, MethodBodyReader.Read(methodBody.Method));
+            return Method(name, new[] { typeof(T1) }, typeof(TReturn), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Method<T1, T2, TReturn>(string name, Func<DynamicClassContext, T1, T2, TReturn> body)
+        {
+            return Method(name, new[] {typeof (T1), typeof (T2)}, typeof (TReturn), MethodBodyReader.Read(body.Method));
         }
 
         private ClassModelBuilder Method(string name, Type[] parameters, Type returnType, MethodBodyReader body)
@@ -108,61 +103,84 @@ namespace CS.Util.Dynamic
 
             var fields = _fields.ToDictionary(kvp => kvp.Key, kvp => builder.DefineField(kvp.Key, kvp.Value, FieldAttributes.Private));
 
+            var methods = _methods.ToDictionary(kvp => kvp.Name,
+                kvp => new InterimMethod
+                {
+                    Builder = builder.DefineMethod(kvp.Name, MethodAttributes.Public | MethodAttributes.Virtual, kvp.ReturnType, kvp.ParameterTypes),
+                    Body = kvp.Body,
+                    AutoProp = false
+                });
+
+            MethodAttributes propAttr = MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual;
+            foreach (var prop in _properties)
+            {
+                bool auto = false, read = prop.GetBody != null, write = prop.SetBody != null;
+                if (!read && !write)
+                    read = write = auto = true;
+
+                if (read)
+                {
+                    var name = "get_" + prop.Name;
+                    var get = builder.DefineMethod(name, propAttr, prop.Type, Type.EmptyTypes);
+                    methods.Add(name, new InterimMethod { Builder = get, Body = prop.GetBody, AutoProp = auto });
+                }
+                if (write)
+                {
+                    var name = "set_" + prop.Name;
+                    var set = builder.DefineMethod(name, propAttr, typeof(void), new Type[] { prop.Type });
+                    methods.Add(name, new InterimMethod { Builder = set, Body = prop.SetBody, AutoProp = auto });
+                }
+            }
+
             foreach (var iface in _interfaces)
                 builder.AddInterfaceImplementation(iface);
 
+            foreach (var meth in methods.Where(m => !m.Value.AutoProp))
+                BuildMethod(builder, meth.Value.Builder, meth.Value.Body, fields, methods);
+
             foreach (var prop in _properties)
-                BuildProperty(builder, prop, fields);
+                BuildProperty(builder, prop, methods);
 
             return builder.CreateType();
         }
 
-        private void BuildProperty(TypeBuilder builder, PropertyDeclaration prop, Dictionary<string, FieldBuilder> fields)
+        private void BuildProperty(TypeBuilder builder, PropertyDeclaration prop, Dictionary<string, InterimMethod> methods)
         {
             var propBuilder = builder.DefineProperty(prop.Name, PropertyAttributes.None, prop.Type, Type.EmptyTypes);
 
-            MethodBuilder get = null;
-            MethodBuilder set = null;
+            InterimMethod get, set;
+            methods.TryGetValue("get_" + prop.Name, out get);
+            methods.TryGetValue("set_" + prop.Name, out set);
 
-            MethodAttributes attr = MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual;
-            if (prop.GetBody == null && prop.SetBody == null)
+            FieldBuilder field = null;
+            if (get?.AutoProp == true || set?.AutoProp == true)
+                field = builder.DefineField("m_" + prop.Name, prop.Type, FieldAttributes.Private);
+
+            if (get?.AutoProp == true)
             {
-                FieldBuilder field = builder.DefineField("m" + prop.Name, prop.Type, FieldAttributes.Private);
-
-                get = builder.DefineMethod("get_" + prop.Name, attr, prop.Type, Type.EmptyTypes);
-                ILGenerator getIL = get.GetILGenerator();
+                ILGenerator getIL = get.Builder.GetILGenerator();
                 getIL.Emit(OpCodes.Ldarg_0);
                 getIL.Emit(OpCodes.Ldfld, field);
                 getIL.Emit(OpCodes.Ret);
+            }
 
-                set = builder.DefineMethod("set_" + prop.Name, attr, typeof(void), new Type[] { prop.Type });
-                ILGenerator setIL = set.GetILGenerator();
+            if (set?.AutoProp == true)
+            {
+                ILGenerator setIL = set.Builder.GetILGenerator();
                 setIL.Emit(OpCodes.Ldarg_0);
                 setIL.Emit(OpCodes.Ldarg_1);
                 setIL.Emit(OpCodes.Stfld, field);
                 setIL.Emit(OpCodes.Ret);
             }
-            else
-            {
-                if (prop.GetBody != null)
-                {
-                    get = builder.DefineMethod("get_" + prop.Name, attr, prop.Type, Type.EmptyTypes);
-                    EmitContextMethod(builder, get, prop.GetBody, fields);
-                }
-                if (prop.SetBody != null)
-                {
-                    set = builder.DefineMethod("set_" + prop.Name, attr, typeof(void), new Type[] { prop.Type });
-                    EmitContextMethod(builder, set, prop.SetBody, fields);
-                }
-            }
 
             if (set != null)
-                propBuilder.SetSetMethod(set);
+                propBuilder.SetSetMethod(set.Builder);
+
             if (get != null)
-                propBuilder.SetGetMethod(get);
+                propBuilder.SetGetMethod(get.Builder);
         }
 
-        private void EmitContextMethod(TypeBuilder builder, MethodBuilder method, MethodBodyReader reader, Dictionary<string, FieldBuilder> fields)
+        private void BuildMethod(TypeBuilder builder, MethodBuilder method, MethodBodyReader reader, Dictionary<string, FieldBuilder> fields, Dictionary<string, InterimMethod> methods)
         {
             var writer = new MethodBodyBuilder(method);
 
@@ -170,9 +188,34 @@ namespace CS.Util.Dynamic
             writer.DeclareLocals(locals);
             writer.DeclareExceptionHandlers(reader.ExceptionHandlers);
 
-            var gen = writer.Generator;
+            // transforms all ldarg.x to ldarg.x-1 and output the index of the new ldarg.0's (context calls)
+            int[] contexts;
+            var body = TransformLdArgOpcodes(reader.Instructions, out contexts);
 
-            var oldBody = reader.Instructions;
+            // starts at the innermost context call and walks back to the beginning replacing them.
+            foreach (var startIndex in contexts.OrderByDescending(x => x))
+            {
+                var endIndex = startIndex;
+                while (endIndex < body.Length)
+                {
+                    endIndex++;
+                    var endOp = body[endIndex];
+                    if (endOp.OpCode == OpCodes.Callvirt && DynamicClassContext.Methods.Contains(endOp.Operand as MethodInfo))
+                        break;
+                }
+
+                endIndex++;
+                var ins = body.Skip(startIndex).Take(endIndex - startIndex).ToArray();
+                ins = ProcessLdContextInstruction(ins, fields, methods);
+                body = body.Take(startIndex).Concat(ins).Concat(body.Skip(endIndex)).ToArray();
+            }
+
+            writer.EmitBody(body);
+        }
+
+        private Instruction[] TransformLdArgOpcodes(Instruction[] oldBody, out int[] contextIndexs)
+        {
+            List<int> context = new List<int>();
             List<Instruction> newBody = new List<Instruction>();
             for (int index = 0; index < oldBody.Length; index++)
             {
@@ -205,37 +248,22 @@ namespace CS.Util.Dynamic
                 }
 
                 if (loc == 0) // accessing 'this'
-                {
                     throw new NotSupportedException("Cannot access 'this' in dynamic method body.");
-                }
-                else if (loc == 1)
-                {
-                    var endIndex = index + 1;
-                    while (endIndex < oldBody.Length)
-                    {
-                        var checkIns = oldBody[endIndex];
-                        endIndex++;
-                        if (checkIns.OpCode == OpCodes.Callvirt)
-                            break;
-                    }
 
-                    var newInstructions = ProcessLdContextInstruction(oldBody.Skip(index).Take(endIndex - index).ToArray(), fields);
-                    newBody.AddRange(newInstructions);
+                if (loc == 1) // accessing context
+                    context.Add(index);
 
-                    index = endIndex;
-                }
-                else 
-                {
-                    ins.OpCode = OpCodes.Ldarg;
-                    ins.Operand = loc - 1;
-                    newBody.Add(ins);
-                }
+                // subtract everything by 1 (to remove context)
+                ins.OpCode = OpCodes.Ldarg;
+                ins.Operand = loc - 1;
+                newBody.Add(ins);
             }
 
-            writer.EmitBody(newBody);
+            contextIndexs = context.ToArray();
+            return newBody.ToArray();
         }
 
-        private Instruction[] ProcessLdContextInstruction(Instruction[] body, Dictionary<string, FieldBuilder> fields)
+        private Instruction[] ProcessLdContextInstruction(Instruction[] body, Dictionary<string, FieldBuilder> fields, Dictionary<string, InterimMethod> methods)
         {
             var call = body.Last().Operand as MethodInfo;
             if (call == null)
@@ -263,6 +291,25 @@ namespace CS.Util.Dynamic
 
                 return ret.ToArray();
             }
+            else if (call == DynamicClassContext.info_getProperty)
+            {
+                var prp = methods["get_" + (string)body[0].Operand];
+                return new Instruction[]
+                {
+                    new Instruction(-1, OpCodes.Ldarg_0),
+                    new Instruction(-1, OpCodes.Callvirt) { Operand = prp.Builder }
+                };
+            }
+            else if (call == DynamicClassContext.info_setProperty)
+            {
+                var prp = methods["set_" + (string)body[0].Operand];
+                List<Instruction> ret = new List<Instruction>();
+                ret.Add(new Instruction(-1, OpCodes.Ldarg_0));
+                ret.AddRange(body.Skip(1));
+                ret.Add(new Instruction(-1, OpCodes.Callvirt) { Operand = prp.Builder });
+
+                return ret.ToArray();
+            }
             else
             {
                 throw new NotSupportedException($"Unsupported context method: {call.Name}.");
@@ -284,21 +331,40 @@ namespace CS.Util.Dynamic
             public Type[] ParameterTypes;
             public MethodBodyReader Body;
         }
+
+        private class InterimMethod
+        {
+            public MethodBuilder Builder;
+            public MethodBodyReader Body;
+            public bool AutoProp;
+        }
+
         public sealed class DynamicClassContext
         {
             internal DynamicClassContext()
             {
             }
 
-            // these methods get re-written in IL
+            internal static MethodInfo[] Methods = new[] { info_getField, info_setField, info_getProperty, info_setProperty };
 
+            // these methods get re-written in IL
             internal static MethodInfo info_getField =>
                 typeof(DynamicClassContext).GetMethod(nameof(Field), new Type[] { typeof(string) });
             public object Field(string name) { return null; }
 
             internal static MethodInfo info_setField =>
-                typeof(DynamicClassContext).GetMethod(nameof(Field), new Type[] { typeof(string), typeof(string) });
-            public void Field(string name, string value) { }
+                typeof(DynamicClassContext).GetMethod(nameof(Field), new Type[] { typeof(string), typeof(object) });
+            public void Field(string name, object value) { }
+
+
+            internal static MethodInfo info_setProperty =>
+                typeof(DynamicClassContext).GetMethod(nameof(Property), new Type[] { typeof(string), typeof(object) });
+            public void Property(string name, object value) { }
+
+            internal static MethodInfo info_getProperty =>
+                typeof(DynamicClassContext).GetMethod(nameof(Property), new Type[] { typeof(string) });
+            public object Property(string name) { return null; }
+
         }
     }
 
