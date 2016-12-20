@@ -43,11 +43,49 @@ namespace CS.Util.Dynamic
             return this;
         }
 
-
-
-        private ClassModelBuilder Constructor(string name, Type[] parameters, Type returnType, MethodBodyReader body)
+        public ClassModelBuilder Constructor()
         {
-            _constructors.Add(new MethodDeclaration() { Name = name, ParameterTypes = parameters, ReturnType = returnType, Body = body });
+            return Constructor((ctx) => { });
+        }
+
+        public ClassModelBuilder Constructor(Action<DynamicClassContext> body)
+        {
+            return Constructor(Type.EmptyTypes, typeof(void), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Constructor<T1>(Action<DynamicClassContext, T1> body)
+        {
+            return Constructor(new[] { typeof(T1) }, typeof(void), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Constructor<T1, T2>(Action<DynamicClassContext, T1, T2> body)
+        {
+            return Constructor(new[] { typeof(T1), typeof(T2) }, typeof(void), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Constructor<T1, T2, T3>(Action<DynamicClassContext, T1, T2, T3> body)
+        {
+            return Constructor(new[] { typeof(T1), typeof(T2), typeof(T3) }, typeof(void), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Constructor<T1, T2, T3, T4>(Action<DynamicClassContext, T1, T2, T3, T4> body)
+        {
+            return Constructor(new[] { typeof(T1), typeof(T2), typeof(T3), typeof(T4) }, typeof(void), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Constructor<T1, T2, T3, T4, T5>(Action<DynamicClassContext, T1, T2, T3, T4, T5> body)
+        {
+            return Constructor(new[] { typeof(T1), typeof(T2), typeof(T3), typeof(T4), typeof(T5) }, typeof(void), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Constructor<T1, T2, T3, T4, T5, T6>(Action<DynamicClassContext, T1, T2, T3, T4, T5, T6> body)
+        {
+            return Constructor(new[] { typeof(T1), typeof(T2), typeof(T3), typeof(T4), typeof(T5), typeof(T6) }, typeof(void), MethodBodyReader.Read(body.Method));
+        }
+
+        private ClassModelBuilder Constructor(Type[] parameters, Type returnType, MethodBodyReader body)
+        {
+            _constructors.Add(new MethodDeclaration() { ParameterTypes = parameters, ReturnType = returnType, Body = body });
             return this;
         }
 
@@ -63,7 +101,62 @@ namespace CS.Util.Dynamic
 
         public ClassModelBuilder Method<T1, T2, TReturn>(string name, Func<DynamicClassContext, T1, T2, TReturn> body)
         {
-            return Method(name, new[] {typeof (T1), typeof (T2)}, typeof (TReturn), MethodBodyReader.Read(body.Method));
+            return Method(name, new[] { typeof(T1), typeof(T2) }, typeof(TReturn), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Method<T1, T2, T3, TReturn>(string name, Func<DynamicClassContext, T1, T2, T3, TReturn> body)
+        {
+            return Method(name, new[] { typeof(T1), typeof(T2), typeof(T3) }, typeof(TReturn), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Method<T1, T2, T3, T4, TReturn>(string name, Func<DynamicClassContext, T1, T2, T3, T4, TReturn> body)
+        {
+            return Method(name, new[] { typeof(T1), typeof(T2), typeof(T3), typeof(T4) }, typeof(TReturn), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Method<T1, T2, T3, T4, T5, TReturn>(string name, Func<DynamicClassContext, T1, T2, T3, T4, T5, TReturn> body)
+        {
+            return Method(name, new[] { typeof(T1), typeof(T2), typeof(T3), typeof(T4), typeof(T5) }, typeof(TReturn), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Method<T1, T2, T3, T4, T5, T6, TReturn>(string name, Func<DynamicClassContext, T1, T2, T3, T4, T5, T6, TReturn> body)
+        {
+            return Method(name, new[] { typeof(T1), typeof(T2), typeof(T3), typeof(T4), typeof(T5), typeof(T6) }, typeof(TReturn), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Method(string name, Action<DynamicClassContext> body)
+        {
+            return Method(name, Type.EmptyTypes, typeof(void), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Method<T1>(string name, Action<DynamicClassContext, T1> body)
+        {
+            return Method(name, new[] { typeof(T1) }, typeof(void), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Method<T1, T2>(string name, Action<DynamicClassContext, T1, T2> body)
+        {
+            return Method(name, new[] { typeof(T1), typeof(T2) }, typeof(void), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Method<T1, T2, T3>(string name, Action<DynamicClassContext, T1, T2, T3> body)
+        {
+            return Method(name, new[] { typeof(T1), typeof(T2), typeof(T3) }, typeof(void), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Method<T1, T2, T3, T4>(string name, Action<DynamicClassContext, T1, T2, T3, T4> body)
+        {
+            return Method(name, new[] { typeof(T1), typeof(T2), typeof(T3), typeof(T4) }, typeof(void), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Method<T1, T2, T3, T4, T5>(string name, Action<DynamicClassContext, T1, T2, T3, T4, T5> body)
+        {
+            return Method(name, new[] { typeof(T1), typeof(T2), typeof(T3), typeof(T4), typeof(T5) }, typeof(void), MethodBodyReader.Read(body.Method));
+        }
+
+        public ClassModelBuilder Method<T1, T2, T3, T4, T5, T6>(string name, Action<DynamicClassContext, T1, T2, T3, T4, T5, T6> body)
+        {
+            return Method(name, new[] { typeof(T1), typeof(T2), typeof(T3), typeof(T4), typeof(T5), typeof(T6) }, typeof(void), MethodBodyReader.Read(body.Method));
         }
 
         private ClassModelBuilder Method(string name, Type[] parameters, Type returnType, MethodBodyReader body)
@@ -135,8 +228,11 @@ namespace CS.Util.Dynamic
             foreach (var iface in _interfaces)
                 builder.AddInterfaceImplementation(iface);
 
+            foreach (var cons in _constructors)
+                BuildMethod(builder, builder.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, cons.ParameterTypes).GetILGenerator(), cons.Body, fields, methods);
+
             foreach (var meth in methods.Where(m => !m.Value.AutoProp))
-                BuildMethod(builder, meth.Value.Builder, meth.Value.Body, fields, methods);
+                BuildMethod(builder, meth.Value.Builder.GetILGenerator(), meth.Value.Body, fields, methods);
 
             foreach (var prop in _properties)
                 BuildProperty(builder, prop, methods);
@@ -180,9 +276,9 @@ namespace CS.Util.Dynamic
                 propBuilder.SetGetMethod(get.Builder);
         }
 
-        private void BuildMethod(TypeBuilder builder, MethodBuilder method, MethodBodyReader reader, Dictionary<string, FieldBuilder> fields, Dictionary<string, InterimMethod> methods)
+        private void BuildMethod(TypeBuilder builder, ILGenerator gen, MethodBodyReader reader, Dictionary<string, FieldBuilder> fields, Dictionary<string, InterimMethod> methods)
         {
-            var writer = new MethodBodyBuilder(method);
+            var writer = new MethodBodyBuilder(gen);
 
             var locals = reader.Locals.Select(lc => lc.LocalType);
             writer.DeclareLocals(locals);
@@ -248,7 +344,7 @@ namespace CS.Util.Dynamic
                 }
 
                 if (loc == 0) // accessing 'this'
-                    throw new NotSupportedException("Cannot access 'this' in dynamic method body.");
+                    throw new NotSupportedException("Cannot access 'this' in dynamic method body. This can happen if you try to use a local clousure variable.");
 
                 if (loc == 1) // accessing context
                     context.Add(index);

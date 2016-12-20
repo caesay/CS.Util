@@ -23,7 +23,6 @@ namespace CS.Util.Dynamic
             }
         }
 
-        private readonly MethodBuilder _builder;
         private readonly ILGenerator _il;
         private readonly Dictionary<int, LocalBuilder> _locals = new Dictionary<int, LocalBuilder>();
         private readonly Dictionary<int, Action> _actions = new Dictionary<int, Action>();
@@ -33,10 +32,12 @@ namespace CS.Util.Dynamic
 
         private bool _emit;
 
-        public MethodBodyBuilder(MethodBuilder builder)
+        public MethodBodyBuilder(MethodBuilder builder) : this(builder.GetILGenerator()) { }
+        public MethodBodyBuilder(ConstructorBuilder builder) : this(builder.GetILGenerator()) { }
+
+        public MethodBodyBuilder(ILGenerator generator)
         {
-            _builder = builder;
-            _il = builder.GetILGenerator();
+            _il = generator;
         }
 
         public static void BuildFromExistingMethod(string newMethodName, MethodInfo originalMethod, TypeBuilder builder)
@@ -46,7 +47,7 @@ namespace CS.Util.Dynamic
 
             var reader = MethodBodyReader.Read(originalMethod);
 
-            MethodBodyBuilder bb = new MethodBodyBuilder(tMethod);
+            MethodBodyBuilder bb = new MethodBodyBuilder(tMethod.GetILGenerator());
             bb.DeclareLocals(reader.Locals.Select(l => l.LocalType));
             bb.DeclareExceptionHandlers(reader.ExceptionHandlers);
             bb.EmitBody(reader.Instructions);
