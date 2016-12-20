@@ -69,6 +69,7 @@
     <Compile Include="Cryptography\PBKDF2.cs" />
     <Compile Include="DateTimeEx.cs" />
     <Compile Include="DisposableTimer.cs" />
+    <Compile Include="Dynamic\ClassModelBuilder.cs" />
     <Compile Include="Dynamic\DebuggableILGenerator.cs" />
     <Compile Include="Elevator.cs" />
     <Compile Include="EndianBitConverter.cs" />
