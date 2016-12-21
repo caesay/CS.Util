@@ -49,6 +49,26 @@ namespace CS.Util.Dynamic
             modBuilder = asmBuilder.DefineDynamicModule("dynamic_type_factory_module", emitSymbols);
         }
 
+        public static InterfaceModelBuilder Interface()
+        {
+            return new InterfaceModelBuilder(modBuilder);
+        }
+
+        public static InterfaceModelBuilder Interface<T>()
+        {
+            return new InterfaceModelBuilder(modBuilder, typeof(T));
+        }
+
+        public static InterfaceModelBuilder Interface(Type baseType)
+        {
+            return new InterfaceModelBuilder(modBuilder, baseType);
+        }
+
+        public static ClassModelBuilder Class()
+        {
+            return new ClassModelBuilder(modBuilder);
+        }
+
         public static Type Merge<T1, T2>()
         {
             return Merge(typeof(T1), typeof(T2));
@@ -108,7 +128,7 @@ namespace CS.Util.Dynamic
         public static object Implement(Type target, DynamicInterfaceMethodHandler implementer)
         {
             Type createdType;
-            if(_implementerCache.ContainsKey(target.AssemblyQualifiedName))
+            if (_implementerCache.ContainsKey(target.AssemblyQualifiedName))
             {
                 createdType = _implementerCache[target.AssemblyQualifiedName];
             }
@@ -301,7 +321,125 @@ namespace CS.Util.Dynamic
             il.Emit(OpCodes.Ret);
             return (CompiledMethodDelegate)dynam.CreateDelegate(typeof(CompiledMethodDelegate));
         }
-
     }
 
+
+    public class InterfaceModelBuilder
+    {
+        public Dictionary<string, PropertyDeclaration> Properties { get; private set; } = new Dictionary<string, PropertyDeclaration>();
+        public Dictionary<string, MethodDeclaration> Methods { get; private set; } = new Dictionary<string, MethodDeclaration>();
+
+        private ModuleBuilder _modBuilder;
+
+        public InterfaceModelBuilder(ModuleBuilder modBuilder)
+        {
+            _modBuilder = modBuilder;
+        }
+
+        public InterfaceModelBuilder(ModuleBuilder modBuilder, Type baseType) : this(modBuilder)
+        {
+            foreach (var prop in baseType.GetProperties())
+                Properties[prop.Name] = PropInfoToDeclaration(prop);
+
+            foreach (var mth in baseType.GetMethods(BindingFlags.Public | BindingFlags.DeclaredOnly))
+                Methods[mth.Name] = new MethodDeclaration(mth.Name, mth.ReturnType, mth.GetParameters().Select(p => p.ParameterType).ToArray());
+        }
+
+        public InterfaceModelBuilder Property<T>(string name, PropertyMethods methods = PropertyMethods.Both)
+        {
+            return Property(name, typeof(T));
+        }
+
+        public InterfaceModelBuilder Property(string name, Type type, PropertyMethods methods = PropertyMethods.Both)
+        {
+            Properties[name] = new PropertyDeclaration(name, type, methods);
+            return this;
+        }
+
+        public InterfaceModelBuilder Method(string name, Type returnType, params Type[] parameterTypes)
+        {
+            Methods[name] = new MethodDeclaration(name, returnType, parameterTypes);
+            return this;
+        }
+
+        public Type Build()
+        {
+            MethodAttributes attr = MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual | MethodAttributes.Abstract;
+            var builder = _modBuilder.DefineType(Guid.NewGuid().ToString(), TypeAttributes.Public | TypeAttributes.Interface | TypeAttributes.Abstract);
+
+            foreach (var propKvp in Properties)
+            {
+                var prop = propKvp.Value;
+                var propBuilder = builder.DefineProperty(prop.Name, PropertyAttributes.HasDefault, prop.Type, Type.EmptyTypes);
+
+                if (prop.Methods.HasFlag(PropertyMethods.Get))
+                {
+                    MethodBuilder methodBuilder = builder.DefineMethod("get_" + prop.Name, attr, prop.Type, Type.EmptyTypes);
+                    propBuilder.SetGetMethod(methodBuilder);
+                }
+
+                if (prop.Methods.HasFlag(PropertyMethods.Set))
+                {
+                    MethodBuilder methodBuilder = builder.DefineMethod("set_" + prop.Name, attr, typeof(void), new Type[] { prop.Type });
+                    propBuilder.SetSetMethod(methodBuilder);
+                }
+            }
+
+            foreach (var methKvp in Methods)
+            {
+                var meth = methKvp.Value;
+                var methBuilder = builder.DefineMethod(meth.Name, MethodAttributes.Abstract | MethodAttributes.Virtual, meth.ReturnType, meth.ParameterTypes);
+            }
+
+            var type = builder.CreateType();
+            return type;
+        }
+
+        private PropertyDeclaration PropInfoToDeclaration(PropertyInfo prop)
+        {
+            PropertyMethods method = PropertyMethods.Get;
+            if (prop.CanRead && prop.CanWrite)
+                method = PropertyMethods.Both;
+            else if (prop.CanWrite)
+                method = PropertyMethods.Set;
+
+            return new PropertyDeclaration(prop.Name, prop.PropertyType, method);
+        }
+
+        public class PropertyDeclaration
+        {
+            public readonly string Name;
+            public readonly Type Type;
+            public readonly PropertyMethods Methods;
+
+            public PropertyDeclaration(string name, Type type, PropertyMethods methods)
+            {
+                Name = name;
+                Type = type;
+                Methods = methods;
+            }
+        }
+
+        public class MethodDeclaration
+        {
+            public readonly string Name;
+            public readonly Type ReturnType;
+            public readonly Type[] ParameterTypes;
+
+            public MethodDeclaration(string name, Type returnType, Type[] parameterTypes)
+            {
+                Name = name;
+                ReturnType = returnType;
+                ParameterTypes = parameterTypes;
+            }
+        }
+
+        [Flags]
+        public enum PropertyMethods
+        {
+            Get = 1,
+            Set = 2,
+            Both = Get | Set,
+        }
+    }
 }

@@ -23,7 +23,6 @@ namespace CS.Util.Dynamic
             }
         }
 
-        private readonly MethodBuilder _builder;
         private readonly ILGenerator _il;
         private readonly Dictionary<int, LocalBuilder> _locals = new Dictionary<int, LocalBuilder>();
         private readonly Dictionary<int, Action> _actions = new Dictionary<int, Action>();
@@ -33,10 +32,12 @@ namespace CS.Util.Dynamic
 
         private bool _emit;
 
-        public MethodBodyBuilder(MethodBuilder builder)
+        public MethodBodyBuilder(MethodBuilder builder) : this(builder.GetILGenerator()) { }
+        public MethodBodyBuilder(ConstructorBuilder builder) : this(builder.GetILGenerator()) { }
+
+        public MethodBodyBuilder(ILGenerator generator)
         {
-            _builder = builder;
-            _il = builder.GetILGenerator();
+            _il = generator;
         }
 
         public static void BuildFromExistingMethod(string newMethodName, MethodInfo originalMethod, TypeBuilder builder)
@@ -46,7 +47,7 @@ namespace CS.Util.Dynamic
 
             var reader = MethodBodyReader.Read(originalMethod);
 
-            MethodBodyBuilder bb = new MethodBodyBuilder(tMethod);
+            MethodBodyBuilder bb = new MethodBodyBuilder(tMethod.GetILGenerator());
             bb.DeclareLocals(reader.Locals.Select(l => l.LocalType));
             bb.DeclareExceptionHandlers(reader.ExceptionHandlers);
             bb.EmitBody(reader.Instructions);
@@ -136,7 +137,12 @@ namespace CS.Util.Dynamic
                                 generator.Emit(instruction.OpCode,
                                     _locals[((LocalVariableInfo)instruction.Operand).LocalIndex]);
                             else if (instruction.Operand is int)
-                                generator.Emit(instruction.OpCode, _locals[(int)instruction.Operand]);
+                            {
+                                if (TargetsLocalVariable(instruction.OpCode))
+                                    generator.Emit(instruction.OpCode, _locals[(int) instruction.Operand]);
+                                else
+                                    generator.Emit(instruction.OpCode, (int)instruction.Operand);
+                            }
                             else
                                 throw new NotSupportedException("Operand for InlineVar is not of expected type");
                             break;
@@ -228,6 +234,22 @@ namespace CS.Util.Dynamic
                             throw new NotSupportedException(string.Format("Unexpected operand type: {0}.", instruction.OpCode.OperandType));
                     }
                 }
+            }
+        }
+
+        bool TargetsLocalVariable(OpCode opcode)
+        {
+            return opcode.Name.Contains("loc");
+        }
+
+        class ThisParameter : ParameterInfo
+        {
+            public ThisParameter(MethodBase method)
+            {
+                this.MemberImpl = method;
+                this.ClassImpl = method.DeclaringType;
+                this.NameImpl = "this";
+                this.PositionImpl = -1;
             }
         }
 

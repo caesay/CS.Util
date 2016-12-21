@@ -13,12 +13,22 @@ using CS.Reactive.Network;
 using CS.Util;
 using CS.Util.Collections;
 using CS.Util.Cryptography;
+using CS.Util.Dynamic;
 using CS.Util.Extensions;
 using CS.Util.Json;
 
 namespace CS.ConsoleTests
 {
-    public class ASD
+    public interface ASDTEST
+    {
+        string i2 { get; set; }
+        string i3 { get; set; }
+
+        string Combine(string arg, string arg2);
+        string GetProps();
+    }
+
+    public class ASD 
     {
         public string i1 = "asdasdsad";
         public string i2 { get; set; } = "asdasdsad";
@@ -35,15 +45,34 @@ namespace CS.ConsoleTests
     {
         static void Main(string[] args)
         {
-            var message = "HI";
-            var delg = Elevator.Compile(() =>
-            {
-                MessageBox.Show(message);
-                return "BLESSED";
-            });
-            var asd = delg.Run();
+            var t = DynamicTypeFactory.Class()
+                .Interface<ASDTEST>() // new class implements this interface
+                .Constructor()
+                .Constructor<string>((ctx, s) => ctx.Field("_TEST2", s))
+                .Field<string>("_TEST") // has a field named _TEST
+                .Field<string>("_TEST2") // has a field named _TEST
+                .Property<string>("i2", (ctx) => (string)ctx.Field("_TEST"), (ctx, s) => ctx.Field("_TEST", ctx.Field("_TEST2") + s)) // has a property using _TEST as a backing field
+                .Property<string>("i3", (ctx) => (string)ctx.Field("_TEST2"), (ctx, s) => ctx.Field("_TEST2", s)) // has an auto property
+                .Method<string, string, string>("Combine", (ctx, s1, s2) => ctx.Field("_TEST2") + s1 + s2)
+                .Method<string>("GetProps", (ctx) =>
+                {
+                    var ret = ctx.Field("_TEST2") + (string) ctx.Property("i2");
+                    ctx.Property("i2", ret);
+                    return ret;
+                })
+                .Build();
 
-            Console.WriteLine();
+            var obj = (ASDTEST)Activator.CreateInstance(t);
+
+            //obj.i3 = "pre_";
+            obj.i2 = "test";
+
+            var asa = obj.i2;
+            var as2 = obj.Combine(" HI ", "BYE");
+            var as3 = obj.GetProps();
+            var as4 = obj.i2;
+
+            Console.WriteLine(  );
         }
 
         static void testPrettyTime()
