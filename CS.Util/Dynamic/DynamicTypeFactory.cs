@@ -29,7 +29,7 @@ namespace CS.Util.Dynamic
 
         static DynamicTypeFactory()
         {
-            asmBuilder = Thread.GetDomain().DefineDynamicAssembly(new AssemblyName("dynamic_type_factory"), AssemblyBuilderAccess.RunAndSave);
+            asmBuilder = Thread.GetDomain().DefineDynamicAssembly(new AssemblyName("dynamic_type_factory"), AssemblyBuilderAccess.Run);
 
 #if DEBUG
             if (Debugger.IsAttached)
@@ -46,13 +46,7 @@ namespace CS.Util.Dynamic
             }
 #endif
 
-            modBuilder = asmBuilder.DefineDynamicModule("dynamic_type_factory_module", "test.dll", emitSymbols);
-        }
-
-        // ... testing
-        internal static void SaveDynamicAssembly()
-        {
-            asmBuilder.Save("test.dll");
+            modBuilder = asmBuilder.DefineDynamicModule("dynamic_type_factory_module", emitSymbols);
         }
 
         public static InterfaceModelBuilder Interface()
