@@ -214,7 +214,8 @@ namespace CS.Util.Dynamic
                 {
                     Builder = builder.DefineMethod(kvp.Name, MethodAttributes.Public | MethodAttributes.Virtual, kvp.ReturnType, kvp.ParameterTypes),
                     Body = kvp.Body,
-                    AutoProp = false
+                    AutoProp = false,
+                    Parameters = kvp.ParameterTypes,
                 });
 
             MethodAttributes propAttr = MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual;
@@ -228,13 +229,13 @@ namespace CS.Util.Dynamic
                 {
                     var name = "get_" + prop.Name;
                     var get = builder.DefineMethod(name, propAttr, prop.Type, Type.EmptyTypes);
-                    methods.Add(name, new InterimMethod { Builder = get, Body = prop.GetBody, AutoProp = auto });
+                    methods.Add(name, new InterimMethod { Builder = get, Body = prop.GetBody, AutoProp = auto, Parameters = Type.EmptyTypes });
                 }
                 if (write)
                 {
                     var name = "set_" + prop.Name;
                     var set = builder.DefineMethod(name, propAttr, typeof(void), new Type[] { prop.Type });
-                    methods.Add(name, new InterimMethod { Builder = set, Body = prop.SetBody, AutoProp = auto });
+                    methods.Add(name, new InterimMethod { Builder = set, Body = prop.SetBody, AutoProp = auto, Parameters = new Type[] { prop.Type } });
                 }
             }
 
@@ -242,10 +243,10 @@ namespace CS.Util.Dynamic
                 builder.AddInterfaceImplementation(iface);
 
             foreach (var cons in _constructors)
-                BuildMethod(builder, builder.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, cons.ParameterTypes).GetILGenerator(), cons.Body, fields, methods, ".ctor");
+                BuildMethod(builder, builder.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, cons.ParameterTypes).GetILGenerator(), cons.Body, cons.ParameterTypes, fields, methods, ".ctor");
 
             foreach (var meth in methods.Where(m => !m.Value.AutoProp))
-                BuildMethod(builder, meth.Value.Builder.GetILGenerator(), meth.Value.Body, fields, methods, meth.Key);
+                BuildMethod(builder, meth.Value.Builder.GetILGenerator(), meth.Value.Body, meth.Value.Parameters, fields, methods, meth.Key);
 
             foreach (var prop in _properties)
                 BuildProperty(builder, prop, methods);
@@ -289,8 +290,13 @@ namespace CS.Util.Dynamic
                 propBuilder.SetGetMethod(get.Builder);
         }
 
-        private void BuildMethod(TypeBuilder builder, ILGenerator gen, MethodBodyReader reader, Dictionary<string, FieldBuilder> fields, Dictionary<string, InterimMethod> methods, string memberName)
+        private void BuildMethod(
+            TypeBuilder builder, ILGenerator gen, MethodBodyReader reader, Type[] realParameters,
+            Dictionary<string, FieldBuilder> fields, Dictionary<string, InterimMethod> methods, string memberName)
         {
+            var fakeParameters = reader.Method.GetParameters().Skip(1).Select(p => p.ParameterType).ToArray();
+            var fakeReturn = (reader.Method as MethodInfo)?.ReturnType;
+
             var writer = new MethodBodyBuilder(gen);
 
             var locals = reader.Locals.Select(lc => lc.LocalType);
@@ -299,7 +305,7 @@ namespace CS.Util.Dynamic
 
             // transforms all ldarg.x to ldarg.x-1 and output the index of the new ldarg.0's (context calls)
             int[] contexts;
-            var body = TransformLdArgOpcodes(reader.Instructions, out contexts);
+            var body = TransformLdArgOpcodes(reader.Instructions, realParameters, fakeParameters, out contexts);
 
             // starts at the innermost context call and walks back to the beginning replacing them.
             foreach (var startIndex in contexts.OrderByDescending(x => x))
@@ -319,10 +325,21 @@ namespace CS.Util.Dynamic
                 body = body.Take(startIndex).Concat(ins).Concat(body.Skip(endIndex)).ToArray();
             }
 
-            writer.EmitBody(body);
+
+            var returnType = methods.ContainsKey(memberName) ? methods[memberName].Builder.ReturnType : null;
+            if (returnType?.IsValueType == true && returnType != typeof(void) && fakeReturn != returnType)
+            {
+                var lbody = body.ToList();
+                lbody.Insert(body.Length - 1, new Instruction(-1, OpCodes.Unbox_Any) { Operand = returnType });
+                writer.EmitBody(lbody);
+            }
+            else
+            {
+                writer.EmitBody(body);
+            }
         }
 
-        private Instruction[] TransformLdArgOpcodes(Instruction[] oldBody, out int[] contextIndexs)
+        private Instruction[] TransformLdArgOpcodes(Instruction[] oldBody, Type[] realParameters, Type[] fakeParameters, out int[] contextIndexs)
         {
             List<int> context = new List<int>();
             List<Instruction> newBody = new List<Instruction>();
@@ -362,10 +379,21 @@ namespace CS.Util.Dynamic
                 if (loc == 1) // accessing context
                     context.Add(index);
 
+                loc--;
+
                 // subtract everything by 1 (to remove context)
                 ins.OpCode = OpCodes.Ldarg;
-                ins.Operand = loc - 1;
+                ins.Operand = loc;
+
                 newBody.Add(ins);
+
+                if (loc > 0)
+                {
+                    var fakeParam = fakeParameters[loc - 1];
+                    var realParam = realParameters[loc - 1];
+                    if (realParam.IsValueType && realParam != fakeParam)
+                        newBody.Add(new Instruction(-1, OpCodes.Box) { Operand = realParam });
+                }
             }
 
             contextIndexs = context.ToArray();
@@ -374,6 +402,7 @@ namespace CS.Util.Dynamic
 
         private Instruction[] ProcessLdContextInstruction(Instruction[] body, Dictionary<string, FieldBuilder> fields, Dictionary<string, InterimMethod> methods, string memberName)
         {
+            var beginOffset = body.First().Offset;
             var call = body.Last().Operand as MethodInfo;
             if (call == null)
                 throw new NotSupportedException("This error shouldn't happen.");
@@ -385,7 +414,7 @@ namespace CS.Util.Dynamic
                 var fld = fields[(string)body[0].Operand];
                 return new Instruction[]
                 {
-                    new Instruction(-1, OpCodes.Ldarg_0),
+                    new Instruction(beginOffset, OpCodes.Ldarg_0),
                     new Instruction(-1, OpCodes.Ldfld) { Operand = fld }
                 };
             }
@@ -394,7 +423,7 @@ namespace CS.Util.Dynamic
                 var fld = fields[(string)body[0].Operand];
 
                 List<Instruction> ret = new List<Instruction>();
-                ret.Add(new Instruction(-1, OpCodes.Ldarg_0));
+                ret.Add(new Instruction(beginOffset, OpCodes.Ldarg_0));
                 ret.AddRange(body.Skip(1));
                 ret.Add(new Instruction(-1, OpCodes.Stfld) { Operand = fld });
 
@@ -405,7 +434,7 @@ namespace CS.Util.Dynamic
                 var prp = methods["get_" + (string)body[0].Operand];
                 return new Instruction[]
                 {
-                    new Instruction(-1, OpCodes.Ldarg_0),
+                    new Instruction(beginOffset, OpCodes.Ldarg_0),
                     new Instruction(-1, OpCodes.Callvirt) { Operand = prp.Builder }
                 };
             }
@@ -413,17 +442,35 @@ namespace CS.Util.Dynamic
             {
                 var prp = methods["set_" + (string)body[0].Operand];
                 List<Instruction> ret = new List<Instruction>();
-                ret.Add(new Instruction(-1, OpCodes.Ldarg_0));
+                ret.Add(new Instruction(beginOffset, OpCodes.Ldarg_0));
                 ret.AddRange(body.Skip(1));
                 ret.Add(new Instruction(-1, OpCodes.Callvirt) { Operand = prp.Builder });
 
                 return ret.ToArray();
             }
-            else if (call == DynamicClassContext.info_getMyName)
+            else if (call == DynamicClassContext.info_getMethodName)
             {
                 return new Instruction[]
                 {
-                    new Instruction(-1, OpCodes.Ldstr) { Operand = memberName },
+                    new Instruction(beginOffset, OpCodes.Ldstr) { Operand = memberName },
+                };
+            }
+            else if (call == DynamicClassContext.info_getMethodReturnType)
+            {
+                var m = methods[memberName];
+                var returnType = m.Builder.ReturnType;
+
+                return new Instruction[]
+                {
+                    new Instruction(beginOffset, OpCodes.Ldtoken) { Operand = returnType },
+                    new Instruction(-1, OpCodes.Call) { Operand = typeof(Type).GetMethod("GetTypeFromHandle", new Type[1] { typeof(RuntimeTypeHandle) }) },
+                };
+            }
+            else if (call == DynamicClassContext.info_getThis)
+            {
+                return new Instruction[]
+                {
+                    new Instruction(beginOffset, OpCodes.Ldarg_0),
                 };
             }
             else
@@ -453,6 +500,7 @@ namespace CS.Util.Dynamic
             public MethodBuilder Builder;
             public MethodBodyReader Body;
             public bool AutoProp;
+            public Type[] Parameters;
         }
 
         public sealed class DynamicClassContext
@@ -461,7 +509,7 @@ namespace CS.Util.Dynamic
             {
             }
 
-            internal static MethodInfo[] Methods = new[] { info_getField, info_setField, info_getProperty, info_setProperty, info_getMyName };
+            internal static MethodInfo[] Methods = new[] { info_getField, info_setField, info_getProperty, info_setProperty, info_getMethodName, info_getMethodReturnType, info_getThis };
 
             // these methods get re-written in IL
             internal static MethodInfo info_getField =>
@@ -481,9 +529,18 @@ namespace CS.Util.Dynamic
                 typeof(DynamicClassContext).GetMethod(nameof(Property), new Type[] { typeof(string) });
             public object Property(string name) { return null; }
 
-            internal static MethodInfo info_getMyName =>
-                typeof(DynamicClassContext).GetMethod(nameof(MyName), new Type[] { });
-            public string MyName() { return null; }
+
+            internal static MethodInfo info_getMethodName =>
+                typeof(DynamicClassContext).GetMethod(nameof(MethodName), new Type[] { });
+            public string MethodName() { return null; }
+
+            internal static MethodInfo info_getMethodReturnType =>
+                typeof(DynamicClassContext).GetMethod(nameof(MethodReturnType), new Type[] { });
+            public Type MethodReturnType() { return null; }
+
+            internal static MethodInfo info_getThis =>
+                typeof(DynamicClassContext).GetMethod(nameof(This), new Type[] { });
+            public object This() { return null; }
         }
     }
 
