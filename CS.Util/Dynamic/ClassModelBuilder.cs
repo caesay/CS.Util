@@ -330,7 +330,11 @@ namespace CS.Util.Dynamic
             if (returnType?.IsValueType == true && returnType != typeof(void) && fakeReturn != returnType)
             {
                 var lbody = body.ToList();
-                lbody.Insert(body.Length - 1, new Instruction(-1, OpCodes.Unbox_Any) { Operand = returnType });
+                // unbox any return values
+                foreach(var ret in lbody.Select((s, i) => new { Index = i, Instruction = s, }).Where(o => o.Instruction.OpCode == OpCodes.Ret).ToArray())
+                {
+                    lbody.Insert(body.Length - 1, new Instruction(-1, OpCodes.Unbox_Any) { Operand = returnType });
+                }
                 writer.EmitBody(lbody);
             }
             else
