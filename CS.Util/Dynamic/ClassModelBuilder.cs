@@ -331,10 +331,8 @@ namespace CS.Util.Dynamic
             {
                 var lbody = body.ToList();
                 // unbox any return values
-                foreach(var ret in lbody.Select((s, i) => new { Index = i, Instruction = s, }).Where(o => o.Instruction.OpCode == OpCodes.Ret).ToArray())
-                {
-                    lbody.Insert(body.Length - 1, new Instruction(-1, OpCodes.Unbox_Any) { Operand = returnType });
-                }
+                foreach (var ret in lbody.Select((s, i) => new { Index = i, Instruction = s }).Where(o => o.Instruction.OpCode == OpCodes.Ret).OrderByDescending(inf => inf.Index).ToArray())
+                    lbody.Insert(ret.Index, new Instruction(-1, OpCodes.Unbox_Any) { Operand = returnType });
                 writer.EmitBody(lbody);
             }
             else
@@ -370,7 +368,7 @@ namespace CS.Util.Dynamic
                 }
                 else if (ins.Operand is int)
                 {
-                    loc = (int)ins.Operand;
+                    loc = (int) ins.Operand;
                 }
                 else
                 {
@@ -381,7 +379,7 @@ namespace CS.Util.Dynamic
                     throw new NotSupportedException("Cannot access 'this' in dynamic method body. This can happen if you try to use a local clousure variable.");
 
                 if (loc == 1) // accessing context
-                    context.Add(index);
+                    context.Add(newBody.Count);
 
                 loc--;
 
@@ -415,7 +413,7 @@ namespace CS.Util.Dynamic
 
             if (call == DynamicClassContext.info_getField)
             {
-                var fld = fields[(string)body[0].Operand];
+                var fld = fields[(string) body[0].Operand];
                 return new Instruction[]
                 {
                     new Instruction(beginOffset, OpCodes.Ldarg_0),
@@ -424,7 +422,7 @@ namespace CS.Util.Dynamic
             }
             else if (call == DynamicClassContext.info_setField)
             {
-                var fld = fields[(string)body[0].Operand];
+                var fld = fields[(string) body[0].Operand];
 
                 List<Instruction> ret = new List<Instruction>();
                 ret.Add(new Instruction(beginOffset, OpCodes.Ldarg_0));
@@ -435,7 +433,7 @@ namespace CS.Util.Dynamic
             }
             else if (call == DynamicClassContext.info_getProperty)
             {
-                var prp = methods["get_" + (string)body[0].Operand];
+                var prp = methods["get_" + (string) body[0].Operand];
                 return new Instruction[]
                 {
                     new Instruction(beginOffset, OpCodes.Ldarg_0),
@@ -444,7 +442,7 @@ namespace CS.Util.Dynamic
             }
             else if (call == DynamicClassContext.info_setProperty)
             {
-                var prp = methods["set_" + (string)body[0].Operand];
+                var prp = methods["set_" + (string) body[0].Operand];
                 List<Instruction> ret = new List<Instruction>();
                 ret.Add(new Instruction(beginOffset, OpCodes.Ldarg_0));
                 ret.AddRange(body.Skip(1));
