@@ -2,11 +2,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace CS.Util
 {
-    public class PrettyTime
+    public static class PrettyTime
     {
         private static TimeUnit[] _unitMap = new TimeUnit[]
         {
@@ -24,6 +25,48 @@ namespace CS.Util
             //new TimeUnit(3155692597470L ,"century", "centuries"),
             //new TimeUnit(31556926000000L ,"millennium", "millennia"),
         };
+
+        public static DateTime AddFriendlyTimeSpan(this DateTime time, string textSpan)
+        {
+            if (!Regex.IsMatch(textSpan, @"^-?(\d+[dwmyMsh])+$"))
+                throw new ArgumentException("Invalid time span format", nameof(textSpan));
+
+            bool shouldSubtract = false;
+            if (textSpan.StartsWith("-"))
+            {
+                textSpan = textSpan.Substring(1);
+                shouldSubtract = true;
+            }
+
+            var matches = Regex.Matches(textSpan, @"(\d+[dwmyMsh])");
+            foreach (Match m in matches)
+            {
+                var text = m.Value;
+                var numLength = text.Length - 1;
+                var num = int.Parse(text.Substring(0, numLength));
+                if (shouldSubtract)
+                    num *= -1;
+
+                var unit = text.Substring(numLength);
+
+                if (unit == "d")
+                    time = time.AddDays(num);
+                if (unit == "w")
+                    time = time.AddDays(num * 7);
+                if (unit == "m")
+                    time = time.AddMonths(num);
+                if (unit == "y")
+                    time = time.AddYears(num);
+                if (unit == "M")
+                    time = time.AddMinutes(num);
+                if (unit == "s")
+                    time = time.AddSeconds(num);
+                if (unit == "h")
+                    time = time.AddHours(num);
+            }
+
+            return time;
+        }
 
         public static string Format(DateTime date)
         {
