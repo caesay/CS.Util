@@ -129,9 +129,10 @@ namespace CS.Util
                 try
                 {
                     outBuffer = Marshal.AllocHGlobal(outBufferSize);
+                    int bytesReturned;
                     bool success = DeviceIoControl(
                         fileHandle.DangerousGetHandle(), ioctlCommandGetReparsePoint, IntPtr.Zero, 0,
-                        outBuffer, outBufferSize, out int bytesReturned, IntPtr.Zero);
+                        outBuffer, outBufferSize, out bytesReturned, IntPtr.Zero);
 
                     fileHandle.Dispose();
 
