@@ -26,19 +26,44 @@ namespace CS.Util
             //new TimeUnit(31556926000000L ,"millennium", "millennia"),
         };
 
-        public static DateTime AddFriendlyTimeSpan(this DateTime time, string textSpan)
+        public static TimeSpan ParseFriendlyTimeSpan(string friendlySpan)
         {
-            if (!Regex.IsMatch(textSpan, @"^-?(\d+[dwmyMsh])+$"))
-                throw new ArgumentException("Invalid time span format", nameof(textSpan));
+            var epoch = new DateTime(1970, 1, 1);
+            return epoch.AddFriendlyTimeSpan(friendlySpan) - epoch;
+        }
+
+        public static string ToFriendlyTimeString(this TimeSpan span)
+        {
+            string output = "";
+
+            if (span.Days > 0)
+                output += span.Days + "d";
+
+            if (span.Hours > 0)
+                output += span.Hours + "h";
+
+            if (span.Minutes > 0)
+                output += span.Minutes + "M";
+
+            if (span.Seconds > 0)
+                output += span.Seconds + "s";
+
+            return output;
+        }
+
+        public static DateTime AddFriendlyTimeSpan(this DateTime time, string friendlySpan)
+        {
+            if (!Regex.IsMatch(friendlySpan, @"^-?(\d+[dwmyMsh])+$"))
+                throw new ArgumentException("Invalid time span format", nameof(friendlySpan));
 
             bool shouldSubtract = false;
-            if (textSpan.StartsWith("-"))
+            if (friendlySpan.StartsWith("-"))
             {
-                textSpan = textSpan.Substring(1);
+                friendlySpan = friendlySpan.Substring(1);
                 shouldSubtract = true;
             }
 
-            var matches = Regex.Matches(textSpan, @"(\d+[dwmyMsh])");
+            var matches = Regex.Matches(friendlySpan, @"(\d+[dwmyMsh])");
             foreach (Match m in matches)
             {
                 var text = m.Value;
