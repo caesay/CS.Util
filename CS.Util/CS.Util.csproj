@@ -82,6 +82,7 @@
     <Compile Include="Extensions\MiscExtensions.cs" />
     <Compile Include="Extensions\NumericExtensions.cs" />
     <Compile Include="Extensions\ObjectExtensions.cs" />
+    <Compile Include="Extensions\PathExtensions.cs" />
     <Compile Include="Extensions\ReflectionExtensions.cs" />
     <Compile Include="Cryptography\Hashers.cs" />
     <Compile Include="Extensions\StreamExtensions.cs" />
